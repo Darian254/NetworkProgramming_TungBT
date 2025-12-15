@@ -167,7 +167,7 @@ int server_handle_buyarmor(ServerSession *session, UserTable *ut, int armor_type
     if (!ship) {
         return RESP_INTERNAL_ERROR; 
     }
-    
+         
     return ship_buy_armor(ut, ship, session->username, armor_type);
 }
 

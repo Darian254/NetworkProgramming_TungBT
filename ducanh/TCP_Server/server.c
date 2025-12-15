@@ -116,8 +116,7 @@ static int handle_client_command(ServerSession *session, const char *line,
             response_code = server_handle_register(g_user_table, arg1, arg2);
             pthread_mutex_unlock(&g_user_table_mutex);
         }
-        snprintf(response_buf, response_size, "%d %s", response_code, 
-                 get_response_message(response_code));
+        snprintf(response_buf, response_size, "%d", response_code);
     }
     else if (strcmp(cmd, "LOGIN") == 0) {
         if (parsed != 3) {
@@ -127,46 +126,42 @@ static int handle_client_command(ServerSession *session, const char *line,
             response_code = server_handle_login(session, g_user_table, arg1, arg2);
             pthread_mutex_unlock(&g_user_table_mutex);
         }
-        snprintf(response_buf, response_size, "%d %s", response_code, 
-                 get_response_message(response_code));
+        snprintf(response_buf, response_size, "%d", response_code);
     }
     else if (strcmp(cmd, "WHOAMI") == 0) {
         char username[MAX_USERNAME];
         response_code = server_handle_whoami(session, username);
         if (response_code == RESP_WHOAMI_OK) {
-            snprintf(response_buf, response_size, "%d WHOAMI_OK %s", response_code, username);
+            snprintf(response_buf, response_size, "%d %s", response_code, username);
         } else {
-            snprintf(response_buf, response_size, "%d %s", response_code, 
-                     get_response_message(response_code));
+            snprintf(response_buf, response_size, "%d", response_code);
         }
     }
     else if (strcmp(cmd, "BYE") == 0 || strcmp(cmd, "LOGOUT") == 0) {
         response_code = server_handle_bye(session);
-        snprintf(response_buf, response_size, "%d %s", response_code, 
-                 get_response_message(response_code));
+        snprintf(response_buf, response_size, "%d", response_code);
     }
     /* ========== NEW GAME COMMANDS ========== */
     else if (strcmp(cmd, "GETCOIN") == 0) {
         if (!session->isLoggedIn) {
             response_code = RESP_NOT_LOGGED;
-            snprintf(response_buf, response_size, "%d NOT_LOGGED", response_code);
+            snprintf(response_buf, response_size, "%d", response_code);
         } else {
             User *user = findUser(g_user_table, session->username);
             if (user) {
                 response_code = RESP_COIN_OK;
-                snprintf(response_buf, response_size, "%d COIN_OK %ld", 
+                snprintf(response_buf, response_size, "%d %ld", 
                          response_code, user->coin);
             } else {
                 response_code = RESP_INTERNAL_ERROR;
-                snprintf(response_buf, response_size, "%d INTERNAL_ERROR user_not_found", 
-                         response_code);
+                snprintf(response_buf, response_size, "%d", response_code);
             }
         }
     }
     else if (strcmp(cmd, "GETARMOR") == 0) {
         if (!session->isLoggedIn) {
             response_code = RESP_NOT_LOGGED;
-            snprintf(response_buf, response_size, "%d NOT_LOGGED", response_code);
+            snprintf(response_buf, response_size, "%d", response_code);
         } else {
             /* Get match_id from session cache or lookup */
             int match_id = session->current_match_id;
@@ -177,19 +172,18 @@ static int handle_client_command(ServerSession *session, const char *line,
             
             if (match_id <= 0) {
                 response_code = RESP_NOT_IN_MATCH;
-                snprintf(response_buf, response_size, "%d NOT_IN_MATCH", response_code);
+                snprintf(response_buf, response_size, "%d", response_code);
             } else {
                 Ship *ship = find_ship(match_id, session->username);
                 if (ship) {
                     response_code = RESP_ARMOR_INFO_OK;
-                    snprintf(response_buf, response_size, "%d ARMOR_INFO_OK %d %d %d %d",
+                    snprintf(response_buf, response_size, "%d %d %d %d %d",
                              response_code,
                              ship->armor_slot_1_type, ship->armor_slot_1_value,
                              ship->armor_slot_2_type, ship->armor_slot_2_value);
                 } else {
                     response_code = RESP_INTERNAL_ERROR;
-                    snprintf(response_buf, response_size, "%d INTERNAL_ERROR ship_not_found", 
-                             response_code);
+                    snprintf(response_buf, response_size, "%d", response_code);
                 }
             }
         }
@@ -197,21 +191,18 @@ static int handle_client_command(ServerSession *session, const char *line,
     else if (strcmp(cmd, "BUYARMOR") == 0) {
         if (parsed < 2) {
             response_code = RESP_SYNTAX_ERROR;
-            snprintf(response_buf, response_size, "%d SYNTAX_ERROR usage: BUYARMOR <type>", 
-                     response_code);
+            snprintf(response_buf, response_size, "%d", response_code);
         } else {
             int armor_type = atoi(arg1);
             pthread_mutex_lock(&g_user_table_mutex);
             response_code = server_handle_buyarmor(session, g_user_table, armor_type);
             pthread_mutex_unlock(&g_user_table_mutex);
-            snprintf(response_buf, response_size, "%d %s", response_code,
-                     get_response_message(response_code));
+            snprintf(response_buf, response_size, "%d", response_code);
         }
     }
     else {
         response_code = RESP_SYNTAX_ERROR;
-        snprintf(response_buf, response_size, "%d %s", response_code, 
-                 get_response_message(response_code));
+        snprintf(response_buf, response_size, "%d", response_code);
     }
     
     return response_code;
@@ -333,7 +324,7 @@ static void *worker_thread_func(void *arg) {
                     if (strcmp(cmd, "LOGIN") == 0 && response_code == RESP_LOGIN_OK) {
                         char session_id[64];
                         snprintf(session_id, sizeof(session_id), "sess_%d_%ld", sock, (long)time(NULL));
-                        snprintf(response, sizeof(response), "%d LOGIN_OK %s", response_code, session_id);
+                        snprintf(response, sizeof(response), "%d %s", response_code, session_id);
                     }
                     
                     if (send_line(sock, response) < 0) {
