@@ -1,0 +1,189 @@
+1.
+snprintf(output, MAX_PASSWORD_HASH, "%lx", hash);
+Chuyển giá trị hash thành chuỗi hexa (%lx)
+
+Ghi vào biến output
+
+Ví dụ hash có thể thành "5f2a7c1".
+
+
+
+
+2.
+isalnum -> kiểm tra xem ký tự có phải chữ hoặc số hay không.
+
+Nếu gặp bất kỳ ký tự nào không phải chữ/số → username không hợp lệ.
+loại bỏ: ký tự đặc biệt (@ # $ % ^ _ -), khoảng trắng, dấu câu, tiếng Việt có dấu,…
+
+3.
+Duyệt toàn bộ mật khẩu
+Nếu là chữ in hoa → đánh dấu has_upper = true
+
+Nếu là chữ số → has_number = true
+
+Nếu không phải chữ và cũng không phải số → coi là ký tự đặc biệt → has_special = true
+
+
+4. 
+HashTable để lưu danh sách account theo dạng bảng băm
+insert → tự động rehash khi gần đầy
+
+find → tìm theo username
+
+hash_password → tạo hash bằng djb2
+
+validate_username → kiểm tra tên hợp lệ
+
+validate_password → kiểm tra mật khẩu mạnh
+
+
+5. 
+TẠI SAO DÙNG HASHTABLE ĐỂ LƯU ACCOUNT?
+LOGIN → kiểm tra username có tồn tại
+
+REGISTER → kiểm tra username đã có hay chưa
+
+STORAGE → lưu hàng nghìn/mười nghìn account
+
+Tìm username rất nhanh
+
+→ HashTable phù hợp nhất cho dữ liệu kiểu “tra cứu theo khóa”.
+
+Hoạt động trung bình O(1) !!!
+
+Tìm username → chỉ vài thao tác tính toán
+
+Chèn account → cũng O(1)
+
+Không phụ thuộc số lượng user
+
+6. 
+Một hash table là mảng:
+
+table[0]
+table[1]
+table[2]
+...
+table[size - 1]
+
+7.
+TẠI SAO CẦN REHASH?
+
+Nếu bảng quá đầy:
+
+nhiều user đụng cùng một ô
+
+danh sách linked list dài dần → chậm lại
+
+Nên khi load factor > 0.75
+→ Tăng gấp đôi kích thước bảng
+→ Phân tán user ra bảng mới → ít va chạm hơn → nhanh hơn.
+
+8.
+loadAccounts
+đọc file account và nạp toàn bộ user vào HashTable.
+
+Mở file
+
+Đọc từng dòng
+
+Tách:
+username – password_hash – status
+
+Tạo struct Account
+
+Cho vào HashTable bằng insertAccount()
+
+-> từ file → dữ liệu vào RAM.
+
+
+9.
+Quản lý đăng nhập (session) cho từng client TCP
+Mỗi client kết nối đến server → tạo 1 session riêng:
+
+username đang đăng nhập
+
+socket của nó
+
+trạng thái login/logoff
+
+địa chỉ client
+
+
+
+
+Quản lý danh sách session cho toàn server
+Server có thể có nhiều client → cần SessionManager lưu tất cả session đang mở.
+
+Dùng danh sách liên kết (linked list) để lưu
+
+Server có nhiều thread → thao tác danh sách session phải khóa (mutex) lại → tránh race condition.
+session_mutex = khóa tránh nhiều thread sửa session cùng lúc
+
+
+
+initServerSession
+Mỗi client khi kết nối vào → server tạo một struct Session rỗng để chứa thông tin.
+
+
+
+
+
+luồng login 
+server_handle_user
+1. Kiểm tra tham số
+Nếu rỗng thì lỗi syntax.
+
+2. Kiểm tra session có login rồi không
+1 socket chỉ được login 1 user.
+
+3. Tìm account trong HashTable
+4. Check account bị khóa
+5. Hash password người dùng gửi lên
+So sánh với password hash trong account.
+6. Cập nhật session
+đánh dấu là logged in
+lưu username
+ghi vào SessionManager
+
+7. Nếu session chưa có trong manager → add xuống
+
+
+
+
+Xử lý đăng ký: server_handle_register
+Quy trình:
+
+Validate username
+Validate password
+Kiểm tra username đã tồn tại chưa
+Tạo Account mới
+Hash password
+Insert vào HashTable → O(1)
+Ghi xuống file để lưu lại saveAccounts()
+
+
+
+
+Xử lý logout: server_handle_bye
+Kiểm tra đã login chưa
+Reset session
+Cập nhật lại session trong session manager
+
+
+
+Trả username cho client: server_handle_whoami
+Nếu session logged in → trả username đang dùng.
+
+
+
+
+
+
+
+
+
+
+
+
+

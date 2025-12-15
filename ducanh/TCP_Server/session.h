@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 #include <netinet/in.h>
-#include "account.h"
+#include "users.h"
 
 /**
  * @def MAX_SESSIONS
@@ -33,6 +33,8 @@ typedef struct {
     char username[MAX_USERNAME];
     int socket_fd;              /**< Socket identifier on server */
     struct sockaddr_in client_addr; /**< Client address */
+    int current_match_id;       /**< Current match ID, -1 if not in match */
+    int current_team_id;        /**< Current team ID, -1 if not in team */
 } ServerSession;
 
 /**
@@ -65,14 +67,14 @@ void initSession(Session * s);
  * @brief Attempt to log in with a username from user input.
  *
  * - If already logged in → show error.  
- * - If the account does not exist or is banned → fail.  
+ * - If the user does not exist or is banned → fail.  
  * - If valid → update Session with login state.
  *
  * @param s Pointer to the Session
- * @param ht Pointer to the HashTable containing accounts
+ * @param ut Pointer to the UserTable containing users
  * @return true if login succeeds, false otherwise
  */
-bool login(Session * s, HashTable * ht);
+bool login(Session * s, UserTable * ut);
 
 /**
  * @brief Log out from the current session (if logged in).
@@ -100,29 +102,29 @@ void initServerSession(ServerSession *s);
 
 /**
  * @brief Handle USER command for TCP server
- * Performs login validation including checking if account exists,
+ * Performs login validation including checking if user exists,
  * is not banned, session not already logged in, and username not
  * logged in elsewhere. Also validates password.
  * 
  * @param session Pointer to the ServerSession
- * @param ht Pointer to the HashTable containing accounts
+ * @param ut Pointer to the UserTable containing users
  * @param username Username from command
  * @param password Plain text password from command
  * @return Response code (110 = success, 211 = banned, 212 = not exist, 
  *         213 = already logged in, 214 = account logged in elsewhere, 218 = wrong password)
  */
-int server_handle_login(ServerSession *session, HashTable *ht, const char *username, const char *password);
+int server_handle_login(ServerSession *session, UserTable *ut, const char *username, const char *password);
 
 /**
  * @brief Handle REGISTER command for TCP server
  * Creates a new user account with password validation
  * 
- * @param ht Pointer to the HashTable containing accounts
+ * @param ut Pointer to the UserTable containing users
  * @param username Username from command
  * @param password Plain text password from command
  * @return Response code (115 = success, 215 = exists, 216 = invalid username, 217 = invalid password)
  */
-int server_handle_register(HashTable *ht, const char *username, const char *password);
+int server_handle_register(UserTable *ut, const char *username, const char *password);
 
 /**
  * @brief Handle BYE command for TCP server
@@ -141,6 +143,24 @@ int server_handle_bye(ServerSession *session);
  * @return Response code (100 = success, 221 = not logged in)
  */
 int server_handle_whoami(ServerSession *session, char *username_out);
+
+/**
+ * @brief Handle BUYARMOR command for TCP server
+ * Purchases armor for the player's ship in current match
+ * 
+ * @param session Pointer to the ServerSession
+ * @param ut Pointer to the UserTable (for coin deduction)
+ * @param armor_type Armor type to purchase (1=basic, 2=enhanced)
+ * @return Response code:
+ *   - RESP_BUY_ITEM_OK (334): Success
+ *   - RESP_NOT_LOGGED (221): Not logged in
+ *   - RESP_NOT_IN_MATCH (223): Not in any running match
+ *   - RESP_ARMOR_NOT_FOUND (520): Invalid armor type
+ *   - RESP_NOT_ENOUGH_COIN (521): Insufficient coins
+ *   - RESP_ARMOR_SLOT_FULL (522): Both armor slots occupied
+ *   - RESP_INTERNAL_ERROR (500): Ship not found or other error
+ */
+int server_handle_buyarmor(ServerSession *session, UserTable *ut, int armor_type);
 
 /**
  * @brief Check if session is logged in
