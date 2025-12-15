@@ -172,11 +172,10 @@ int main(int argc, char *argv[]) {
                 }
 
                 if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
-                    // Parse response: "201 WHOAMI_OK username" or error code
+                    // Parse response: "201 username" or error code
                     int code;
-                    char status[64] = "";
                     char username[128] = "";
-                    sscanf(recvbuf, "%d %63s %127s", &code, status, username);
+                    sscanf(recvbuf, "%d %127s", &code, username);
                     
                     if (code == RESP_WHOAMI_OK && strlen(username) > 0) {
                         printf("You are logged in as: %s\n", username);
@@ -201,9 +200,9 @@ int main(int argc, char *argv[]) {
 
                 if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
                     int code;
-                    int coin = 0;
-                    if (sscanf(recvbuf, "%d %*s %d", &code, &coin) >= 2 && code == RESP_COIN_OK) {
-                        printf("Your coin balance: %d\n", coin);
+                    long coin = 0;
+                    if (sscanf(recvbuf, "%d %ld", &code, &coin) >= 2 && code == RESP_COIN_OK) {
+                        printf("Your coin balance: %ld\n", coin);
                     } else {
                         char pretty[1024];
                         beautify_result(recvbuf, pretty, sizeof(pretty));
@@ -220,11 +219,10 @@ int main(int argc, char *argv[]) {
 
                 if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
                     int code;
-                    char status[64] = "";
                     int slot1_type = 0, slot1_value = 0, slot2_type = 0, slot2_value = 0;
                     
-                    if (sscanf(recvbuf, "%d %63s %d %d %d %d", &code, status, 
-                               &slot1_type, &slot1_value, &slot2_type, &slot2_value) >= 2 
+                    if (sscanf(recvbuf, "%d %d %d %d %d", &code, 
+                               &slot1_type, &slot1_value, &slot2_type, &slot2_value) >= 5 
                         && code == RESP_ARMOR_INFO_OK) {
                         printf("=== Your Ship Armor ===\n");
                         printf("Slot 1: Type=%d, Value=%d\n", slot1_type, slot1_value);
