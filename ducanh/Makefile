@@ -21,11 +21,12 @@ CLIENT_OBJS = $(CLIENT_DIR)/client.o \
 SERVER_OBJS = $(SERVER_DIR)/server.o \
               $(SERVER_DIR)/file_transfer.o \
               $(SERVER_DIR)/util.o \
-              $(SERVER_DIR)/account.o \
-              $(SERVER_DIR)/account_io.o \
+              $(SERVER_DIR)/users.o \
+              $(SERVER_DIR)/users_io.o \
               $(SERVER_DIR)/hash.o \
               $(SERVER_DIR)/session.o \
-              $(SERVER_DIR)/config.o
+              $(SERVER_DIR)/config.o \
+              $(SERVER_DIR)/db.o
 
 .PHONY: all clean client server
 

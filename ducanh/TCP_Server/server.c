@@ -25,24 +25,25 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <netinet/in.h>
-#include "account.h"
-#include "account_io.h"
+#include "users.h"
+#include "users_io.h"
 #include "hash.h"
 #include "file_transfer.h"
 #include "session.h"
 #include "config.h"
+#include "db_schema.h"
 
 #define BUFF_SIZE 2048
 #define DESIRED_NOFILE_LIMIT 65535
-#define ACCOUNT_FILE "TCP_Server/account.txt"
+#define USERS_FILE "TCP_Server/users.txt"
 #define HASH_SIZE 101
 
 #define MAX_CONN_PER_WORKER 900    
 #define MAX_WORKERS 100            
 
 /* Global resources (protected by mutexes) */
-static HashTable *g_account_ht = NULL;
-static pthread_mutex_t g_account_mutex = PTHREAD_MUTEX_INITIALIZER;
+static UserTable *g_user_table = NULL;
+static pthread_mutex_t g_user_table_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct {
     pthread_t thread_id;
@@ -92,9 +93,17 @@ static void try_raise_nofile_limit(void) {
 
 /**
  * @brief Handle a command from a client (thread-safe)
+ * @param session The client session
+ * @param line The command line received
+ * @param response_buf Buffer to store the response string
+ * @param response_size Size of response buffer
+ * @return Response code
  */
-static int handle_client_command(ServerSession *session, const char *line) {
+static int handle_client_command(ServerSession *session, const char *line, 
+                                  char *response_buf, size_t response_size) {
     char cmd[16], arg1[BUFF_SIZE], arg2[BUFF_SIZE];
+    memset(arg1, 0, sizeof(arg1));
+    memset(arg2, 0, sizeof(arg2));
     int parsed = sscanf(line, "%15s %s %[^\r\n]", cmd, arg1, arg2);
     
     int response_code;
@@ -103,30 +112,97 @@ static int handle_client_command(ServerSession *session, const char *line) {
         if (parsed != 3) {
             response_code = RESP_SYNTAX_ERROR;
         } else {
-            pthread_mutex_lock(&g_account_mutex);
-            response_code = server_handle_register(g_account_ht, arg1, arg2);
-            pthread_mutex_unlock(&g_account_mutex);
+            pthread_mutex_lock(&g_user_table_mutex);
+            response_code = server_handle_register(g_user_table, arg1, arg2);
+            pthread_mutex_unlock(&g_user_table_mutex);
         }
+        snprintf(response_buf, response_size, "%d", response_code);
     }
     else if (strcmp(cmd, "LOGIN") == 0) {
         if (parsed != 3) {
             response_code = RESP_SYNTAX_ERROR;
         } else {
-            pthread_mutex_lock(&g_account_mutex);
-            response_code = server_handle_login(session, g_account_ht, arg1, arg2);
-            pthread_mutex_unlock(&g_account_mutex);
+            pthread_mutex_lock(&g_user_table_mutex);
+            response_code = server_handle_login(session, g_user_table, arg1, arg2);
+            pthread_mutex_unlock(&g_user_table_mutex);
         }
+        snprintf(response_buf, response_size, "%d", response_code);
     }
     else if (strcmp(cmd, "WHOAMI") == 0) {
         char username[MAX_USERNAME];
         response_code = server_handle_whoami(session, username);
-        // Note: caller should send username in response
+        if (response_code == RESP_WHOAMI_OK) {
+            snprintf(response_buf, response_size, "%d %s", response_code, username);
+        } else {
+            snprintf(response_buf, response_size, "%d", response_code);
+        }
     }
     else if (strcmp(cmd, "BYE") == 0 || strcmp(cmd, "LOGOUT") == 0) {
         response_code = server_handle_bye(session);
+        snprintf(response_buf, response_size, "%d", response_code);
+    }
+    /* ========== NEW GAME COMMANDS ========== */
+    else if (strcmp(cmd, "GETCOIN") == 0) {
+        if (!session->isLoggedIn) {
+            response_code = RESP_NOT_LOGGED;
+            snprintf(response_buf, response_size, "%d", response_code);
+        } else {
+            User *user = findUser(g_user_table, session->username);
+            if (user) {
+                response_code = RESP_COIN_OK;
+                snprintf(response_buf, response_size, "%d %ld", 
+                         response_code, user->coin);
+            } else {
+                response_code = RESP_INTERNAL_ERROR;
+                snprintf(response_buf, response_size, "%d", response_code);
+            }
+        }
+    }
+    else if (strcmp(cmd, "GETARMOR") == 0) {
+        if (!session->isLoggedIn) {
+            response_code = RESP_NOT_LOGGED;
+            snprintf(response_buf, response_size, "%d", response_code);
+        } else {
+            /* Get match_id from session cache or lookup */
+            int match_id = session->current_match_id;
+            if (match_id <= 0) {
+                /* Try lookup as fallback */
+                match_id = find_current_match_by_username(session->username);
+            }
+            
+            if (match_id <= 0) {
+                response_code = RESP_NOT_IN_MATCH;
+                snprintf(response_buf, response_size, "%d", response_code);
+            } else {
+                Ship *ship = find_ship(match_id, session->username);
+                if (ship) {
+                    response_code = RESP_ARMOR_INFO_OK;
+                    snprintf(response_buf, response_size, "%d %d %d %d %d",
+                             response_code,
+                             ship->armor_slot_1_type, ship->armor_slot_1_value,
+                             ship->armor_slot_2_type, ship->armor_slot_2_value);
+                } else {
+                    response_code = RESP_INTERNAL_ERROR;
+                    snprintf(response_buf, response_size, "%d", response_code);
+                }
+            }
+        }
+    }
+    else if (strcmp(cmd, "BUYARMOR") == 0) {
+        if (parsed < 2) {
+            response_code = RESP_SYNTAX_ERROR;
+            snprintf(response_buf, response_size, "%d", response_code);
+        } else {
+            int armor_type = atoi(arg1);
+            pthread_mutex_lock(&g_user_table_mutex);
+            response_code = server_handle_buyarmor(session, g_user_table, armor_type);
+            pthread_mutex_unlock(&g_user_table_mutex);
+            snprintf(response_buf, response_size, "%d", response_code);
+        }
     }
     else {
         response_code = RESP_SYNTAX_ERROR;
+        snprintf(response_buf, response_size, "%d", response_code);
     }
     
     return response_code;
@@ -238,34 +314,17 @@ static void *worker_thread_func(void *arg) {
                     worker->conn_count--;
                     pthread_mutex_unlock(&worker->lock);
                 } else {
-                    // Parse command to handle special response formats
+                    char response[512];
+                    int response_code = handle_client_command(&sessions[i], line, 
+                                                              response, sizeof(response));
+                    
+                    // For LOGIN success, append session_id
                     char cmd[16];
                     sscanf(line, "%15s", cmd);
-                    
-                    int response_code = handle_client_command(&sessions[i], line);
-                    
-                    char response[512];
-                    
-                    // Format response based on command type
-                    if (strcmp(cmd, "WHOAMI") == 0 && response_code == RESP_WHOAMI_OK) {
-                        // WHOAMI: send "201 WHOAMI_OK <username>"
-                        char username[MAX_USERNAME];
-                        server_handle_whoami(&sessions[i], username);
-                        snprintf(response, sizeof(response), "%d WHOAMI_OK %s", response_code, username);
-                    } else if (strcmp(cmd, "LOGIN") == 0 && response_code == RESP_LOGIN_OK) {
-                        // LOGIN: send "110 LOGIN_OK <session_id>"
-                        // Generate simple session_id from socket_fd and timestamp
+                    if (strcmp(cmd, "LOGIN") == 0 && response_code == RESP_LOGIN_OK) {
                         char session_id[64];
                         snprintf(session_id, sizeof(session_id), "sess_%d_%ld", sock, (long)time(NULL));
-                        snprintf(response, sizeof(response), "%d LOGIN_OK %s", response_code, session_id);
-                    } else {
-                        // Standard response: "<code> <message>"
-                        const char *msg = get_response_message((ResponseCode)response_code);
-                        if (msg) {
-                            snprintf(response, sizeof(response), "%d %s", response_code, msg);
-                        } else {
-                            snprintf(response, sizeof(response), "%d", response_code);
-                        }
+                        snprintf(response, sizeof(response), "%d %s", response_code, session_id);
                     }
                     
                     if (send_line(sock, response) < 0) {
@@ -361,27 +420,27 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    /* ====== Load account database ====== */
-    g_account_ht = initHashTable(HASH_SIZE);
-    if (!g_account_ht) {
-        fprintf(stderr, "Failed to allocate hash table.\n");
+    /* ====== Load user database ====== */
+    g_user_table = initUserTable(HASH_SIZE);
+    if (!g_user_table) {
+        fprintf(stderr, "Failed to allocate user table.\n");
         return EXIT_FAILURE;
     }
 
-    AccountIOStatus status = loadAccounts(g_account_ht, ACCOUNT_FILE);
-    if (status != ACCOUNT_IO_OK) {
-        fprintf(stderr, "Failed to load accounts (status=%d).\n", status);
-        freeHashTable(g_account_ht);
+    UserIOStatus status = loadUsers(g_user_table, USERS_FILE);
+    if (status != USER_IO_OK) {
+        fprintf(stderr, "Failed to load users (status=%d).\n", status);
+        freeUserTable(g_user_table);
         return EXIT_FAILURE;
     }
     
-    printf("Loaded accounts successfully.\n");
+    printf("Loaded users successfully.\n");
 
     /* ====== Step 1: Create TCP socket ====== */
     int listen_sock = socket(AF_INET, SOCK_STREAM, 0);
     if (listen_sock < 0) {
         perror("socket() error");
-        freeHashTable(g_account_ht);
+        freeUserTable(g_user_table);
         return EXIT_FAILURE;
     }
 
@@ -390,7 +449,7 @@ int main(int argc, char *argv[]) {
     if (setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
         perror("setsockopt() error");
         close(listen_sock);
-        freeHashTable(g_account_ht);
+        freeUserTable(g_user_table);
         return EXIT_FAILURE;
     }
 
@@ -404,7 +463,7 @@ int main(int argc, char *argv[]) {
     if (bind(listen_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
         perror("bind() error");
         close(listen_sock);
-        freeHashTable(g_account_ht);
+        freeUserTable(g_user_table);
         return EXIT_FAILURE;
     }
 
@@ -412,7 +471,7 @@ int main(int argc, char *argv[]) {
     if (listen(listen_sock, SOMAXCONN) < 0) {
         perror("listen() error");
         close(listen_sock);
-        freeHashTable(g_account_ht);
+        freeUserTable(g_user_table);
         return EXIT_FAILURE;
     }
     
@@ -476,7 +535,7 @@ int main(int argc, char *argv[]) {
     /* Cleanup */
     close(listen_sock);
     cleanup_session_manager();
-    freeHashTable(g_account_ht);
+    freeUserTable(g_user_table);
     return EXIT_SUCCESS;
 }
 

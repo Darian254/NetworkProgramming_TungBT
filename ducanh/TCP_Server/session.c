@@ -6,7 +6,9 @@
 #include "util.h"
 #include "config.h"
 #include "hash.h"
-#include "account_io.h"
+#include "users.h"
+#include "users_io.h"
+#include "db_schema.h"  // For FILE_USERS
 
 /* Global session manager with mutex for thread safety */
 static SessionManager session_mgr = {NULL, 0};
@@ -18,10 +20,12 @@ void initServerSession(ServerSession *s) {
     s->username[0] = '\0';
     s->socket_fd = -1;
     memset(&s->client_addr, 0, sizeof(s->client_addr));
+    s->current_match_id = -1;
+    s->current_team_id = -1;
 }
 
-int server_handle_login(ServerSession *session, HashTable *ht, const char *username, const char *password) {
-    if (!session || !ht || !username || !password) {
+int server_handle_login(ServerSession *session, UserTable *ut, const char *username, const char *password) {
+    if (!session || !ut || !username || !password) {
         return RESP_SYNTAX_ERROR;
     }
     
@@ -30,27 +34,24 @@ int server_handle_login(ServerSession *session, HashTable *ht, const char *usern
         return RESP_ALREADY_LOGGED;
     }
     
-    /* Find account */
-    Account *acc = findAccount(ht, username);
-    if (!acc) {
+    /* Find user */
+    User *user = findUser(ut, username);
+    if (!user) {
         return RESP_ACCOUNT_NOT_FOUND;
     }
     
-    if (acc->status == 0) {
+    if (user->status == USER_BANNED) {
         return RESP_ACCOUNT_LOCKED;
     }
     
     /* Validate password */
-    char password_hash[MAX_PASSWORD_HASH];
-    hash_password(password, password_hash);
-    
-    if (strcmp(acc->password_hash, password_hash) != 0) {
+    if (!verifyPassword(password, user->password_hash)) {
         return RESP_WRONG_PASSWORD;
     }
     
     /* Login successful - update session */
     session->isLoggedIn = true;
-    strncpy(session->username, acc->username, MAX_USERNAME - 1);
+    strncpy(session->username, user->username, MAX_USERNAME - 1);
     session->username[MAX_USERNAME - 1] = '\0';
     
     /* Update session in manager */
@@ -62,49 +63,38 @@ int server_handle_login(ServerSession *session, HashTable *ht, const char *usern
     return RESP_LOGIN_OK;
 }
 
-int server_handle_register(HashTable *ht, const char *username, const char *password) {
-    if (!ht || !username || !password) {
+int server_handle_register(UserTable *ut, const char *username, const char *password) {
+    if (!ut || !username || !password) {
         return RESP_SYNTAX_ERROR;
     }
     
     /* Validate username format */
-    if (!validate_username(username)) {
+    if (!validateUsername(username)) {
         return RESP_INVALID_USERNAME;
     }
     
     /* Validate password format */
-    if (!validate_password(password)) {
+    if (!validatePassword(password)) {
         return RESP_WEAK_PASSWORD;
     }
     
     /* Check if username already exists */
-    if (findAccount(ht, username)) {
+    if (findUser(ut, username)) {
         return RESP_USERNAME_EXISTS;
     }
     
-    /* Create new account */
-    Account *acc = malloc(sizeof(Account));
-    if (!acc) {
-        return RESP_INTERNAL_ERROR;
-    }
-    
-    strncpy(acc->username, username, MAX_USERNAME - 1);
-    acc->username[MAX_USERNAME - 1] = '\0';
-    
     /* Hash password */
-    hash_password(password, acc->password_hash);
+    char password_hash[MAX_PASSWORD_HASH];
+    hashPassword(password, password_hash);
     
-    acc->status = 1; /* Active by default */
-    acc->next = NULL;
-    
-    /* Insert into hash table */
-    if (!insertAccount(ht, acc)) {
-        free(acc);
+    /* Create new user */
+    User *user = createUser(ut, username, password_hash);
+    if (!user) {
         return RESP_INTERNAL_ERROR;
     }
     
     /* Save to file for persistence */
-    saveAccounts(ht, "TCP_Server/account.txt");
+    saveUsers(ut, FILE_USERS);
     
     return RESP_REGISTER_OK;
 }
@@ -145,6 +135,40 @@ int server_handle_whoami(ServerSession *session, char *username_out) {
     username_out[MAX_USERNAME - 1] = '\0';
     
     return RESP_WHOAMI_OK;
+}
+
+int server_handle_buyarmor(ServerSession *session, UserTable *ut, int armor_type) {
+    if (!session || !ut) {
+        return RESP_SYNTAX_ERROR;
+    }
+    
+    if (!session->isLoggedIn) {
+        return RESP_NOT_LOGGED;
+    }
+    
+    int match_id = session->current_match_id;
+    if (match_id <= 0) {
+        /* Fallback */
+        match_id = find_current_match_by_username(session->username);
+        if (match_id > 0) {
+            session->current_match_id = match_id; 
+        }
+    }
+    
+    if (match_id <= 0) {
+        return RESP_NOT_IN_MATCH;
+    }
+    
+    if (armor_type < ARMOR_BASIC || armor_type > ARMOR_ENHANCED) {
+        return RESP_ARMOR_NOT_FOUND;
+    }
+    
+    Ship *ship = find_ship(match_id, session->username);
+    if (!ship) {
+        return RESP_INTERNAL_ERROR; 
+    }
+         
+    return ship_buy_armor(ut, ship, session->username, armor_type);
 }
 
 /* ====== Session Manager Implementation ====== */

@@ -1,6 +1,0 @@
-# username password_hash status
-
-ductq c2322ca995aa460f 0
-admin 726aa9bbecdd3f36 1
-ducanh 726aa9bbecdd3f36 1
-tungbt c56c5bd1a0927784 1

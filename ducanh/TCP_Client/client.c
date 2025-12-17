@@ -172,11 +172,10 @@ int main(int argc, char *argv[]) {
                 }
 
                 if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
-                    // Parse response: "201 WHOAMI_OK username" or error code
+                    // Parse response: "201 username" or error code
                     int code;
-                    char status[64] = "";
                     char username[128] = "";
-                    sscanf(recvbuf, "%d %63s %127s", &code, status, username);
+                    sscanf(recvbuf, "%d %127s", &code, username);
                     
                     if (code == RESP_WHOAMI_OK && strlen(username) > 0) {
                         printf("You are logged in as: %s\n", username);
@@ -192,6 +191,92 @@ int main(int argc, char *argv[]) {
                 printf("Exiting program...\n");
                 close(sock);
                 return EXIT_SUCCESS;
+            }
+            case FUNC_CHECK_COIN: { /* Check my coin */
+                if (send_line(sock, "GETCOIN") < 0) {
+                    perror("send() error");
+                    break;
+                }
+
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    int code;
+                    long coin = 0;
+                    if (sscanf(recvbuf, "%d %ld", &code, &coin) >= 2 && code == RESP_COIN_OK) {
+                        printf("Your coin balance: %ld\n", coin);
+                    } else {
+                        char pretty[1024];
+                        beautify_result(recvbuf, pretty, sizeof(pretty));
+                        printf("%s", pretty);
+                    }
+                }
+                break;
+            }
+            case FUNC_CHECK_ARMOR: { /* Check my armor */
+                if (send_line(sock, "GETARMOR") < 0) {
+                    perror("send() error");
+                    break;
+                }
+
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    int code;
+                    int slot1_type = 0, slot1_value = 0, slot2_type = 0, slot2_value = 0;
+                    
+                    if (sscanf(recvbuf, "%d %d %d %d %d", &code, 
+                               &slot1_type, &slot1_value, &slot2_type, &slot2_value) >= 5 
+                        && code == RESP_ARMOR_INFO_OK) {
+                        printf("=== Your Ship Armor ===\n");
+                        printf("Slot 1: Type=%d, Value=%d\n", slot1_type, slot1_value);
+                        printf("Slot 2: Type=%d, Value=%d\n", slot2_type, slot2_value);
+                    } else {
+                        char pretty[1024];
+                        beautify_result(recvbuf, pretty, sizeof(pretty));
+                        printf("%s", pretty);
+                    }
+                }
+                break;
+            }
+            case FUNC_BUY_ARMOR: { /* Buy armor */
+                printf("=== Armor Shop ===\n");
+                printf("1. Basic Armor (1000 coin, +500 armor)\n");
+                printf("2. Enhanced Armor (2000 coin, +1500 armor)\n");
+                printf("0. Cancel\n");
+                printf("Select armor type: ");
+                fflush(stdout);
+                
+                char armor_choice[16];
+                safeInput(armor_choice, sizeof(armor_choice));
+                
+                int armor_type = atoi(armor_choice);
+                if (armor_type == 0) {
+                    printf("Purchase cancelled.\n");
+                    break;
+                }
+                if (armor_type < 1 || armor_type > 2) {
+                    printf("Invalid armor type.\n");
+                    break;
+                }
+                
+                char cmd[64];
+                snprintf(cmd, sizeof(cmd), "BUYARMOR %d", armor_type);
+                
+                if (send_line(sock, cmd) < 0) {
+                    perror("send() error");
+                    break;
+                }
+
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    int code;
+                    sscanf(recvbuf, "%d", &code);
+                    
+                    if (code == RESP_BUY_ITEM_OK) {
+                        printf("Armor purchased successfully!\n");
+                    } else {
+                        char pretty[1024];
+                        beautify_result(recvbuf, pretty, sizeof(pretty));
+                        printf("%s", pretty);
+                    }
+                }
+                break;
             }
             default: {
                 printf("Invalid choice, please try again.\n");
