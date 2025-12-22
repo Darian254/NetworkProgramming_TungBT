@@ -272,6 +272,7 @@ bool delete_team(int team_id);
 int find_team_id_by_username(const char *username);
 int find_running_match_by_team(int team_id);
 int find_current_match_by_username(const char *username);
+int find_available_opponent_team(int user_team_id);
 
 /* Match operations */
 Match* find_match_by_id(int match_id);

@@ -7,8 +7,9 @@ HDRS := server.h epoll.h config.h connect.h router.h command.h models.h
 OBJS := $(SRCS:.c=.o)
 
 TARGET := server
+CLIENT := client
 
-.PHONY: all clean run
+.PHONY: all clean run client
 
 all: $(TARGET)
 
@@ -21,5 +22,8 @@ $(TARGET): $(OBJS)
 run: $(TARGET)
 	./$(TARGET)
 
+client: client.c config.h
+	$(CC) $(CFLAGS) -o $(CLIENT) client.c
+
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -f $(OBJS) $(TARGET) $(CLIENT)

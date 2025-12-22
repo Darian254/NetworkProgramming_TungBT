@@ -83,4 +83,5 @@ void server_shutdown(void) {
         listen_sock = -1;
     }
     printf("Server shutdown.\n");
+    exit(EXIT_SUCCESS);
 }

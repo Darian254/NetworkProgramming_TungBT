@@ -2,6 +2,9 @@
 #include <string.h>
 #include <stdio.h>
 #include "command.h"
+#include "response.h"
+#include "connect.h"
+#include <time.h>
 
 static void handle_register(int fd, const char *payload) { printf("[REGISTER] %s\n", payload); }
 static void handle_login(int fd, const char *payload)    { printf("[LOGIN] %s\n", payload); }
@@ -21,7 +24,19 @@ static void handle_send_challenge(int fd, const char *p) { printf("[SEND_CHALLEN
 static void handle_accept_challenge(int fd, const char *p){ printf("[ACCEPT_CHALLENGE] %s\n", p); }
 static void handle_decline_challenge(int fd, const char *p){ printf("[DECLINE_CHALLENGE] %s\n", p); }
 static void handle_cancel_challenge(int fd, const char *p){ printf("[CANCEL_CHALLENGE] %s\n", p); }
-static void handle_unknown(int fd, const char *cmd)      { printf("[UNKNOWN] %s\n", cmd); }
+static void handle_start_match(int fd, const char *p) { 
+    printf("[START_MATCH] team_id=%s\n", p);
+    char match_id[32];
+    snprintf(match_id, sizeof(match_id), "%ld", (long)time(NULL));
+    printf("Generated match_id: %s\n", match_id);
+    char response[64];
+    snprintf(response, sizeof(response), START_MATCH_OK, match_id);
+    printf("Response: %s", response);
+}
+static void handle_get_match_result(int fd, const char *p) { 
+    printf("[GET_MATCH_RESULT] match_id=%s\n", p);
+}
+static void handle_unknown(int fd, const char *cmd) { printf("[UNKNOWN] %s\n", cmd); }
 
 void command_routes(int client_sock, char *command) {
     Command c = parse_command(command);
@@ -64,6 +79,10 @@ void command_routes(int client_sock, char *command) {
         handle_decline_challenge(client_sock, payload);
     } else if (strcmp(type, "CANCEL_CHALLENGE") == 0) {
         handle_cancel_challenge(client_sock, payload);
+    } else if (strcmp(type, "START_MATCH") == 0) {
+        handle_start_match(client_sock, payload); 
+    } else if (strcmp(type, "GET_MATCH_RESULT") == 0) {
+        handle_get_match_result(client_sock, payload); 
     } else {
         handle_unknown(client_sock, type);
     }

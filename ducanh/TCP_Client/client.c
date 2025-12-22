@@ -10,8 +10,6 @@
 #include "../TCP_Server/file_transfer.h"
 #include "../TCP_Server/util.h"
 
-#define BUFF_SIZE 2048
-
 /**
  * @brief Print program usage for the TCP client.
  * @param prog Executable name (argv[0]).
@@ -72,7 +70,7 @@ int main(int argc, char *argv[]) {
 
     int choice;
     char line[32];
-
+    
     while (1) {
         displayMenu();
         fflush(stdout);
@@ -270,6 +268,76 @@ int main(int argc, char *argv[]) {
                     
                     if (code == RESP_BUY_ITEM_OK) {
                         printf("Armor purchased successfully!\n");
+                    } else {
+                        char pretty[1024];
+                        beautify_result(recvbuf, pretty, sizeof(pretty));
+                        printf("%s", pretty);
+                    }
+                }
+                break;
+            }
+            case FUNC_START_MATCH: { /* Start match */
+                printf("Enter opponent team ID to start match: ");
+                fflush(stdout);
+                
+                char team_id_str[16];
+                safeInput(team_id_str, sizeof(team_id_str));
+                int opponent_team_id = atoi(team_id_str);
+                
+                if (opponent_team_id <= 0) {
+                    printf("Invalid team ID.\n");
+                    break;
+                }
+                
+                char cmd[64];
+                snprintf(cmd, sizeof(cmd), "START_MATCH %d", opponent_team_id);
+                
+                if (send_line(sock, cmd) < 0) {
+                    perror("send() error");
+                    break;
+                }
+
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    int code;
+                    sscanf(recvbuf, "%d", &code);
+                    
+                    if (code == RESP_START_MATCH_OK) {
+                        printf("Match started successfully!\n");
+                    } else {
+                        char pretty[1024];
+                        beautify_result(recvbuf, pretty, sizeof(pretty));
+                        printf("%s", pretty);
+                    }
+                }
+                break;
+            }
+            case FUNC_GET_MATCH_RESULT: { /* Get match result */
+                printf("Enter match ID: ");
+                fflush(stdout);
+                
+                char match_id_str[16];
+                safeInput(match_id_str, sizeof(match_id_str));
+                int match_id = atoi(match_id_str);
+                
+                if (match_id <= 0) {
+                    printf("Invalid match ID.\n");
+                    break;
+                }
+                
+                char cmd[64];
+                snprintf(cmd, sizeof(cmd), "GET_MATCH_RESULT %d", match_id);
+                
+                if (send_line(sock, cmd) < 0) {
+                    perror("send() error");
+                    break;
+                }
+
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    int code;
+                    sscanf(recvbuf, "%d", &code);
+                    
+                    if (code == RESP_MATCH_RESULT_OK) {
+                        printf("Match result retrieved successfully!\n");
                     } else {
                         char pretty[1024];
                         beautify_result(recvbuf, pretty, sizeof(pretty));

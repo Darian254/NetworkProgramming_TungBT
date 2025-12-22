@@ -3,8 +3,10 @@
 #include "server.h"
 #include "router.h"
 #include "epoll.h"
+#include "session.h"
 // #include "protocol.h"
 // #include "buffer.h"
+#include "file_transfer.h"
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -15,6 +17,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/epoll.h>
+#include <sys/ioctl.h>
 
 typedef struct connection {
     int sockfd;
@@ -41,6 +44,12 @@ void connection_disable_write(connection_t* conn) {
 }
 
 void connection_create(int client_sock) {
+    int on = 1;
+    if (ioctl(client_sock, FIONBIO, (char *)&on) < 0) {
+        perror("ioctl() error:");
+        close(client_sock);
+        return;
+    }
     connection_t *conn = (connection_t *)malloc(sizeof(connection_t));
     if(!conn) {
         perror("malloc() error:");
@@ -51,35 +60,48 @@ void connection_create(int client_sock) {
     memset(conn, 0, sizeof(connection_t));
 
     conn->sockfd = client_sock;
-    conn->read_buffer_len = 0;
-    conn->write_buffer_len = 0;
+    conn->read_buffer_len = 0; 
+    conn->write_buffer_len = 0; 
 
     connections[client_sock] = conn;
     printf("Connection created for socket %d\n", client_sock);
+
+    // Create empty session for this connection
+    ServerSession new_session;
+    initServerSession(&new_session);
+    new_session.socket_fd = client_sock;
+    add_session(&new_session);
+
+    // Send initial greeting so client recv_line() doesn't block
+    // Use a dedicated welcome code to avoid confusion with REGISTER_OK
+    const char *greeting = "120"; // RESP_WELCOME
+    if (send_line(client_sock, greeting) < 0) {
+        // Fallback: enqueue via epoll-driven buffer if immediate send fails
+        const char *fallback = "120\r\n";
+        connection_send(client_sock, fallback, strlen(fallback));
+    }
 }
 
 void connection_on_read(int client_sock) {
     connection_t *conn = connections[client_sock];
     if(!conn) return;
     while(1) {
-        ssize_t n = recv(client_sock, conn->read_buffer + conn->read_buffer_len,
-                         BUFF_SIZE - conn->read_buffer_len, 0);
-        if (n < 0) {
+        char line[BUFF_SIZE];
+        ssize_t m = recv_line(client_sock, line, sizeof(line));
+        if (m < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN) {
                 break; // No more data to read
             } else {
-                perror("recv() error:");
+                perror("recv_line() error:");
                 connection_close(client_sock);
                 return;
             }
-        } else if (n == 0) {
-            // Connection closed by the client
-            connection_close(client_sock);
-            return;
+        } else if (m == 0) {
+            // Remote closed connection or empty line
+            break;
         } else {
-            conn->read_buffer_len += n;
-            command_routes(client_sock, conn->read_buffer);
-            conn->read_buffer_len = 0; // Reset buffer after processing
+            // Process a full command line (without CRLF)
+            command_routes(client_sock, line);
         }
     }
 }
@@ -89,7 +111,7 @@ void connection_on_write(int client_sock) {
     if(!conn) return;
 
     while (conn->write_buffer_len > 0) {
-        ssize_t n = send(client_sock, conn->write_buffer, conn->write_buffer_len, 0);
+        ssize_t n = send_line(client_sock, conn->write_buffer);
         if (n < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN) {
                 break; // Socket not ready for writing
@@ -107,6 +129,21 @@ void connection_on_write(int client_sock) {
             connection_disable_write(conn);
         }
     }
+}
+
+int connection_send(int client_sock, const char *response, size_t len) {
+    connection_t *conn = connections[client_sock];
+    if(!conn) return -1;
+
+    if(len > BUFF_SIZE - conn->write_buffer_len) {
+        return -1;
+    }
+
+    memcpy(conn->write_buffer + conn->write_buffer_len, response, len);
+    conn->write_buffer_len += len;
+
+    connection_enable_write(conn);
+    return 0;
 }
 
 void connection_close(int client_sock) {

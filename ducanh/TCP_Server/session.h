@@ -163,6 +163,32 @@ int server_handle_whoami(ServerSession *session, char *username_out);
 int server_handle_buyarmor(ServerSession *session, UserTable *ut, int armor_type);
 
 /**
+ * @brief Handle START_MATCH command - creates custom match with specified opponent
+ * Both teams should coordinate beforehand (via chat/external means) to exchange team IDs
+ *
+ * @param session Current session
+ * @param opponent_team_id ID of the opponent team to play against
+ * @return Response code:
+ *   - RESP_SYNTAX_ERROR (301): Invalid opponent_team_id or self-match
+ *   - RESP_NOT_LOGGED (315): User not logged in
+ *   - RESP_NOT_CREATOR (316): User is not team creator
+ *   - RESP_TEAM_NOT_FOUND (410): User's team not found
+ *   - RESP_OPPONENT_NOT_FOUND (411): Opponent team not found
+ *   - RESP_TEAM_IN_MATCH (412): Either team already in match
+ *   - RESP_MATCH_CREATE_FAILED (413): Match creation failed
+ *   - RESP_START_MATCH_OK (126): Success
+ */
+int server_handle_start_match(ServerSession *session, int opponent_team_id);
+
+/**
+ * @brief Handle GET_MATCH_RESULT command - retrieves match result
+ * @param session Current session
+ * @param match_id Match ID to query
+ * @return RESP_MATCH_RESULT_OK (203) if finished, or error code
+ */
+int server_handle_get_match_result(ServerSession *session, int match_id);
+
+/**
  * @brief Check if session is logged in
  * 
  * @param session Pointer to the ServerSession

@@ -49,7 +49,7 @@ static void handle_accept(void) {
         connection_create(client_sock);
 
         struct epoll_event ev;
-        ev.events = EPOLLIN | EPOLLET | EPOLLOUT; // Edge-triggered for client sockets
+        ev.events = EPOLLIN | EPOLLET; // Edge-triggered for client sockets
         ev.data.fd = client_sock;
         if(epoll_ctl(epollfd, EPOLL_CTL_ADD, client_sock, &ev) == -1) {
             perror("epoll_ctl() error:");

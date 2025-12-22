@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
 #include "util.h"
 #include "config.h"
 #include "hash.h"
@@ -10,9 +9,8 @@
 #include "users_io.h"
 #include "db_schema.h"  // For FILE_USERS
 
-/* Global session manager with mutex for thread safety */
+/* Global session manager (single-threaded epoll, no locking needed) */
 static SessionManager session_mgr = {NULL, 0};
-static pthread_mutex_t session_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void initServerSession(ServerSession *s) {
     if (!s) return;
@@ -171,6 +169,116 @@ int server_handle_buyarmor(ServerSession *session, UserTable *ut, int armor_type
     return ship_buy_armor(ut, ship, session->username, armor_type);
 }
 
+int server_handle_start_match(ServerSession *session, int opponent_team_id) {
+    // 1. Validate input
+    if (!session) {
+        return RESP_SYNTAX_ERROR;
+    }
+    
+    if (opponent_team_id <= 0) {
+        return RESP_SYNTAX_ERROR;
+    }
+    
+    // 2. Check if user is logged in
+    if (!session->isLoggedIn) {
+        return RESP_NOT_LOGGED;
+    }
+    
+    // 3. Get user's current team
+    int user_team_id = session->current_team_id;
+    if (user_team_id <= 0) {
+        // Fallback: try to find team by username
+        user_team_id = find_team_id_by_username(session->username);
+        if (user_team_id > 0) {
+            session->current_team_id = user_team_id;
+        }
+        else {
+            return RESP_TEAM_NOT_FOUND; // 4. Validate user's team exists
+        }
+    }
+    
+    // 5. Validate user's team exists
+    Team *user_team = find_team_by_id(user_team_id);
+    if (!user_team) {
+        return RESP_TEAM_NOT_FOUND;
+    }
+    
+    // 6. Check if user is the team creator
+    int user_id = (int)hashFunc(session->username);
+    if (user_team->creator_id != user_id) {
+        return RESP_NOT_CREATOR;
+    }
+    
+    // 7. Check if trying to match with own team
+    if (opponent_team_id == user_team_id) {
+        return RESP_SYNTAX_ERROR;
+    }
+    
+    // 8. Validate opponent team exists
+    Team *opponent_team = find_team_by_id(opponent_team_id);
+    if (!opponent_team) {
+        return RESP_OPPONENT_NOT_FOUND;
+    }
+    
+    // 9. Check if user's team is already in a match
+    int existing_match = find_running_match_by_team(user_team_id);
+    if (existing_match >= 0) {
+        return RESP_TEAM_IN_MATCH;
+    }
+    
+    // 10. Check if opponent team is already in a match
+    existing_match = find_running_match_by_team(opponent_team_id);
+    if (existing_match >= 0) {
+        return RESP_TEAM_IN_MATCH;
+    }
+    
+    // 11. Create the match
+    Match *new_match = create_match(user_team_id, opponent_team_id);
+    if (!new_match) {
+        return RESP_MATCH_CREATE_FAILED;
+    }
+    
+    // 12. Update session with new match ID
+    session->current_match_id = new_match->match_id;
+    update_session_by_socket(session->socket_fd, session);
+    
+    // 13. Success
+    return RESP_START_MATCH_OK;
+}
+
+int server_handle_get_match_result(ServerSession *session, int match_id) {
+    if (!session) return RESP_SYNTAX_ERROR;
+    if (!session->isLoggedIn) return RESP_NOT_LOGGED;
+    if (match_id <= 0) return RESP_SYNTAX_ERROR;
+    
+    // Find match by ID
+    Match *match = find_match_by_id(match_id);
+    if (!match) {
+        return RESP_MATCH_NOT_FOUND;
+    }
+    
+    // Verify user is in this match (either team1 or team2)
+    int user_team_id = session->current_team_id;
+    if (user_team_id <= 0) {
+        user_team_id = find_team_id_by_username(session->username);
+    }
+    
+    if (user_team_id != match->team1_id && user_team_id != match->team2_id) {
+        return RESP_NOT_AUTHORIZED;
+    }
+    
+    // Check match status
+    if (match->status == MATCH_RUNNING) {
+        return RESP_MATCH_RUNNING;
+    }
+    
+    if (match->status == MATCH_FINISHED) {
+        return RESP_MATCH_RESULT_OK;
+    }
+    
+    return RESP_INTERNAL_ERROR;
+}
+
 /* ====== Session Manager Implementation ====== */
 
 void init_session_manager(void) {
@@ -180,7 +288,6 @@ void init_session_manager(void) {
 }
 
 void cleanup_session_manager(void) {
-    pthread_mutex_lock(&session_mutex);
     SessionNode *current = session_mgr.head;
     while (current != NULL) {
         SessionNode *next = current->next;
@@ -189,29 +296,10 @@ void cleanup_session_manager(void) {
     }
     session_mgr.head = NULL;
     session_mgr.count = 0;
-    pthread_mutex_unlock(&session_mutex);
 }
 
-SessionNode *find_session_by_username(const char *username) {
-    if (!username) return NULL;
-    
-    pthread_mutex_lock(&session_mutex);
-    SessionNode *current = session_mgr.head;
-    SessionNode *result = NULL;
-    while (current != NULL) {
-        if (current->session.isLoggedIn && 
-            strcmp(current->session.username, username) == 0) {
-            result = current;
-            break;
-        }
-        current = current->next;
-    }
-    pthread_mutex_unlock(&session_mutex);
-    return result;
-}
 
 SessionNode *find_session_by_socket(int socket_fd) {
-    pthread_mutex_lock(&session_mutex);
     SessionNode *current = session_mgr.head;
     SessionNode *result = NULL;
     while (current != NULL) {
@@ -221,20 +309,16 @@ SessionNode *find_session_by_socket(int socket_fd) {
         }
         current = current->next;
     }
-    pthread_mutex_unlock(&session_mutex);
     return result;
 }
 
 bool add_session(ServerSession *session) {
     if (!session || session->socket_fd < 0) return false;
     
-    pthread_mutex_lock(&session_mutex);
-    
     /* Check if session with this socket already exists */
     SessionNode *existing = session_mgr.head;
     while (existing != NULL) {
         if (existing->session.socket_fd == session->socket_fd) {
-            pthread_mutex_unlock(&session_mutex);
             return false; /* Already exists */
         }
         existing = existing->next;
@@ -243,7 +327,6 @@ bool add_session(ServerSession *session) {
     /* Create new session node */
     SessionNode *new_node = (SessionNode *)malloc(sizeof(SessionNode));
     if (!new_node) {
-        pthread_mutex_unlock(&session_mutex);
         return false;
     }
     
@@ -252,12 +335,10 @@ bool add_session(ServerSession *session) {
     session_mgr.head = new_node;
     session_mgr.count++;
     
-    pthread_mutex_unlock(&session_mutex);
     return true;
 }
 
 bool remove_session_by_socket(int socket_fd) {
-    pthread_mutex_lock(&session_mutex);
     SessionNode *current = session_mgr.head;
     SessionNode *prev = NULL;
     
@@ -270,14 +351,12 @@ bool remove_session_by_socket(int socket_fd) {
             }
             free(current);
             session_mgr.count--;
-            pthread_mutex_unlock(&session_mutex);
             return true;
         }
         prev = current;
         current = current->next;
     }
     
-    pthread_mutex_unlock(&session_mutex);
     return false;
 }
 
@@ -309,24 +388,18 @@ bool remove_session_by_username(const char *username) {
 bool update_session_by_socket(int socket_fd, ServerSession *session) {
     if (!session || socket_fd < 0) return false;
     
-    pthread_mutex_lock(&session_mutex);
     SessionNode *current = session_mgr.head;
     while (current != NULL) {
         if (current->session.socket_fd == socket_fd) {
             current->session = *session;
-            pthread_mutex_unlock(&session_mutex);
             return true;
         }
         current = current->next;
     }
-    pthread_mutex_unlock(&session_mutex);
     
     return false;
 }
 
 int get_active_session_count(void) {
-    pthread_mutex_lock(&session_mutex);
-    int count = session_mgr.count;
-    pthread_mutex_unlock(&session_mutex);
-    return count;
+    return session_mgr.count;
 }
