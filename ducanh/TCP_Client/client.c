@@ -12,6 +12,7 @@
 
 #define BUFF_SIZE 8192 // Tăng kích thước buffer để nhận danh sách dài
 
+
 /**
  * @brief Print program usage for the TCP client.
  * @param prog Executable name (argv[0]).
@@ -23,11 +24,12 @@ static void usage(const char *prog) {
 
 /**
  * @brief TCP client entry point.
+ *
+ * Connects to the server, prints the welcome message, then presents
+ * a simple menu to send USER/POST/BYE requests. Server responses are
+ * beautified into human-friendly text via beautify_result().
  */
 int main(int argc, char *argv[]) {
-    /* =========================================
-     * 1. KẾT NỐI SERVER
-     * ========================================= */
     if (argc != 3) {
         usage(argv[0]);
         return EXIT_FAILURE;
@@ -72,20 +74,17 @@ int main(int argc, char *argv[]) {
         printf("%s", pretty);
     }
 
+
     /* =========================================
      * 3. VÒNG LẶP CHÍNH (MAIN LOOP)
      * ========================================= */
     int choice;
     char line[64];
-
     while (1) {
         displayMenu();
         fflush(stdout);
-        
-        // Nhập lựa chọn an toàn
         safeInput(line, sizeof(line));
-        
-        if (strlen(line) == 0) continue; 
+        if (strlen(line) == 0) break;
         if (sscanf(line, "%d", &choice) != 1) {
             printf("Invalid input. Please enter a number.\n\n");
             continue;
@@ -93,58 +92,160 @@ int main(int argc, char *argv[]) {
 
         char cmd[512];
         cmd[0] = '\0'; // Reset lệnh
-
-        /* =========================================
-         * XỬ LÝ LỰA CHỌN CỦA NGƯỜI DÙNG
-         * ========================================= */
         switch (choice) {
-            // --- AUTHENTICATION ---
-            case FUNC_REGISTER: { 
+            case FUNC_REGISTER: { /* Register */
                 char username[128], password[128];
-                printf("Username: "); fflush(stdout); safeInput(username, sizeof(username));
-                if (strlen(username) == 0) { printf("Username cannot be empty.\n"); continue; }
-                
-                printf("Password: "); fflush(stdout); safeInput(password, sizeof(password));
-                if (strlen(password) == 0) { printf("Password cannot be empty.\n"); continue; }
+                printf("Username: ");
+                fflush(stdout);
+                safeInput(username, sizeof(username));
 
+                if (strlen(username) == 0) {
+                    printf("Username cannot be empty.\n");
+                    continue;
+                }
+                
+                printf("Password: ");
+                fflush(stdout);
+                safeInput(password, sizeof(password));
+
+                if (strlen(password) == 0) {
+                    printf("Password cannot be empty.\n");
+                    continue;
+                }
+
+                char cmd[512];
                 snprintf(cmd, sizeof(cmd), "REGISTER %s %s", username, password);
-                break;
-            }
-            case FUNC_LOGIN: { 
-                char username[128], password[128];
-                printf("Username: "); fflush(stdout); safeInput(username, sizeof(username));
-                if (strlen(username) == 0) { printf("Username cannot be empty.\n"); continue; }
-                
-                printf("Password: "); fflush(stdout); safeInput(password, sizeof(password));
-                if (strlen(password) == 0) { printf("Password cannot be empty.\n"); continue; }
+                if (send_line(sock, cmd) < 0) {
+                    perror("send() error");
+                    break;
+                }
 
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+                    printf("%s", pretty);
+                }
+                break;
+            }
+            case FUNC_LOGIN: { /* Login */
+                char username[128], password[128];
+                printf("Username: ");
+                fflush(stdout);
+                safeInput(username, sizeof(username));
+
+                if (strlen(username) == 0) {
+                    printf("Username cannot be empty.\n");
+                    continue;
+                }
+                
+                printf("Password: ");
+                fflush(stdout);
+                safeInput(password, sizeof(password));
+
+                if (strlen(password) == 0) {
+                    printf("Password cannot be empty.\n");
+                    continue;
+                }
+
+                char cmd[512];
                 snprintf(cmd, sizeof(cmd), "LOGIN %s %s", username, password);
+                if (send_line(sock, cmd) < 0) {
+                    perror("send() error");
+                    break;
+                }
+
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+                    printf("%s", pretty);
+                }
                 break;
             }
-            case FUNC_LOGOUT: { 
-                snprintf(cmd, sizeof(cmd), "BYE");
+            case FUNC_LOGOUT: { /* Logout */
+                if (send_line(sock, "BYE") < 0) {
+                    perror("send() error");
+                    break;
+                }
+
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+                    printf("%s", pretty);
+                }
                 break;
             }
-            case FUNC_WHOAMI: { 
-                snprintf(cmd, sizeof(cmd), "WHOAMI");
+            case FUNC_WHOAMI: { /* Who am I? */
+                if (send_line(sock, "WHOAMI") < 0) {
+                    perror("send() error");
+                    break;
+                }
+
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    // Parse response: "201 username" or error code
+                    int code;
+                    char username[128] = "";
+                    sscanf(recvbuf, "%d %127s", &code, username);
+                    
+                    if (code == RESP_WHOAMI_OK && strlen(username) > 0) {
+                        printf("You are logged in as: %s\n", username);
+                    } else {
+                        char pretty[1024];
+                        beautify_result(recvbuf, pretty, sizeof(pretty));
+                        printf("%s", pretty);
+                    }
+                }
                 break;
             }
-            case FUNC_EXIT: { 
+            case FUNC_EXIT: { /* Exit */
                 printf("Exiting program...\n");
                 close(sock);
                 return EXIT_SUCCESS;
             }
 
-            // --- PERSONAL ---
-            case FUNC_CHECK_COIN: { 
-                snprintf(cmd, sizeof(cmd), "GETCOIN");
+            case FUNC_CHECK_COIN: { /* Check my coin */
+                if (send_line(sock, "GETCOIN") < 0) {
+                    perror("send() error");
+                    break;
+                }
+
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    int code;
+                    long coin = 0;
+                    if (sscanf(recvbuf, "%d %ld", &code, &coin) >= 2 && code == RESP_COIN_OK) {
+                        printf("Your coin balance: %ld\n", coin);
+                    } else {
+                        char pretty[1024];
+                        beautify_result(recvbuf, pretty, sizeof(pretty));
+                        printf("%s", pretty);
+                    }
+                }
                 break;
             }
-            case FUNC_CHECK_ARMOR: { 
-                snprintf(cmd, sizeof(cmd), "GETARMOR");
+            case FUNC_CHECK_ARMOR: { /* Check my armor */
+                if (send_line(sock, "GETARMOR") < 0) {
+                    perror("send() error");
+                    break;
+                }
+
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    int code;
+                    int slot1_type = 0, slot1_value = 0, slot2_type = 0, slot2_value = 0;
+                    
+                    if (sscanf(recvbuf, "%d %d %d %d %d", &code, 
+                               &slot1_type, &slot1_value, &slot2_type, &slot2_value) >= 5 
+                        && code == RESP_ARMOR_INFO_OK) {
+                        printf("=== Your Ship Armor ===\n");
+                        printf("Slot 1: Type=%d, Value=%d\n", slot1_type, slot1_value);
+                        printf("Slot 2: Type=%d, Value=%d\n", slot2_type, slot2_value);
+                    } else {
+                        char pretty[1024];
+                        beautify_result(recvbuf, pretty, sizeof(pretty));
+                        printf("%s", pretty);
+                    }
+                }
                 break;
-            }
-            case FUNC_BUY_ARMOR: { 
+            }   
+            case FUNC_BUY_ARMOR: {
                 printf("=== Armor Shop ===\n");
                 printf("1. Basic Armor (1000 coin, +500 armor)\n");
                 printf("2. Enhanced Armor (2000 coin, +1500 armor)\n");
@@ -154,155 +255,226 @@ int main(int argc, char *argv[]) {
                 char armor_choice[16];
                 safeInput(armor_choice, sizeof(armor_choice));
                 int armor_type = atoi(armor_choice);
+                
                 if (armor_type == 0) { printf("Purchase cancelled.\n"); continue; }
+                if (armor_type < 1 || armor_type > 2) { printf("Invalid armor type.\n"); continue; }
                 
                 snprintf(cmd, sizeof(cmd), "BUYARMOR %d", armor_type);
+                if (send_line(sock, cmd) < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                     char pretty[1024];
+                     beautify_result(recvbuf, pretty, sizeof(pretty));
+                     printf("%s", pretty);
+                }
                 break;
             }
-            
-            // --- TEAM OPERATIONS (SỬA LẠI ĐỂ DÙNG ENUM) ---
-            
+
+            case FUNC_START_MATCH: {
+                printf("Enter opponent team ID to start match: "); fflush(stdout);
+                char team_id_str[16];
+                safeInput(team_id_str, sizeof(team_id_str));
+                
+                int opponent_team_id = atoi(team_id_str);
+                if (opponent_team_id <= 0) { printf("Invalid team ID.\n"); continue; }
+                
+                snprintf(cmd, sizeof(cmd), "START_MATCH %d", opponent_team_id);
+                if (send_line(sock, cmd) < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                     char pretty[1024];
+                     beautify_result(recvbuf, pretty, sizeof(pretty));
+                     printf("%s", pretty);
+                }
+                break;
+            }
+
+            case FUNC_GET_MATCH_RESULT: {
+                printf("Enter match ID: "); fflush(stdout);
+                char match_id_str[16];
+                safeInput(match_id_str, sizeof(match_id_str));
+                
+                int match_id = atoi(match_id_str);
+                if (match_id <= 0) { printf("Invalid match ID.\n"); continue; }
+                
+                snprintf(cmd, sizeof(cmd), "GET_MATCH_RESULT %d", match_id);
+                if (send_line(sock, cmd) < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                     char pretty[1024];
+                     beautify_result(recvbuf, pretty, sizeof(pretty));
+                     printf("%s", pretty);
+                }
+                break;
+            }
+
+            /* ==================================================
+             * GROUP 3: TEAM MANAGEMENT (Của Local - Viết lại theo Remote)
+             * ================================================== */
             case FUNC_CREATE_TEAM: { 
                 char team_name[128];
                 printf("Enter new team name: "); fflush(stdout); safeInput(team_name, sizeof(team_name));
                 if (strlen(team_name) == 0) continue;
+
                 snprintf(cmd, sizeof(cmd), "CREATE_TEAM %s", team_name);
+                if (send_line(sock, cmd) < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+                    printf("%s", pretty);
+                }
                 break;
             }
+
             case FUNC_DELETE_TEAM: { 
-                snprintf(cmd, sizeof(cmd), "DELETE_TEAM ");
+                if (send_line(sock, "DELETE_TEAM") < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+                    printf("%s", pretty);
+                }
                 break;
             }
+
             case FUNC_LIST_TEAMS: { 
-                snprintf(cmd, sizeof(cmd), "LIST_TEAMS");
+                if (send_line(sock, "LIST_TEAMS") < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char *payload = strchr(recvbuf, ' ');
+                    if (payload) {
+                        printf("\n>>> TEAM LIST:\n%s\n", payload + 1);
+                    } else {
+                        printf("\n>>> TEAM LIST: (Empty)\n");
+                    }
+                }
                 break;
             }
+
             case FUNC_JOIN_REQUEST: { 
                 char team_name[128];
                 printf("Enter team name to join: "); fflush(stdout); safeInput(team_name, sizeof(team_name));
                 if (strlen(team_name) == 0) continue;
+
                 snprintf(cmd, sizeof(cmd), "JOIN_REQUEST %s", team_name);
+                if (send_line(sock, cmd) < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+                    printf("%s", pretty);
+                }
                 break;
             }
+
             case FUNC_LEAVE_TEAM: { 
-                snprintf(cmd, sizeof(cmd), "LEAVE_TEAM");
+                if (send_line(sock, "LEAVE_TEAM") < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+                    printf("%s", pretty);
+                }
                 break;
             }
-            
-            
+
             case FUNC_TEAM_MEMBERS: { 
-                snprintf(cmd, sizeof(cmd), "TEAM_MEMBER_LIST");
+                if (send_line(sock, "TEAM_MEMBER_LIST") < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char *payload = strchr(recvbuf, ' ');
+                    if (payload) {
+                        printf("\n>>> MEMBERS:\n%s\n", payload + 1);
+                    } else {
+                        printf("\n>>> MEMBERS: (Empty)\n");
+                    }
+                }
                 break;
             }
+
             case FUNC_KICK_MEMBER: { 
                 char target_user[128];
-                
-                printf("Enter username to kick: "); 
-                fflush(stdout); 
-                safeInput(target_user, sizeof(target_user));
-                
+                printf("Enter username to kick: "); fflush(stdout); safeInput(target_user, sizeof(target_user));
                 if (strlen(target_user) == 0) continue;
 
                 snprintf(cmd, sizeof(cmd), "KICK_MEMBER %s", target_user);
+                if (send_line(sock, cmd) < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+                    printf("%s", pretty);
+                }
                 break;
             }
+
             case FUNC_APPROVE_JOIN: { 
                 char target_user[128];
-                
-                printf("Enter username to approve: "); 
-                fflush(stdout); 
-                safeInput(target_user, sizeof(target_user));
-                
+                printf("Enter username to approve: "); fflush(stdout); safeInput(target_user, sizeof(target_user));
                 if (strlen(target_user) == 0) continue;
 
                 snprintf(cmd, sizeof(cmd), "JOIN_APPROVE %s", target_user);
+                if (send_line(sock, cmd) < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+                    printf("%s", pretty);
+                }
                 break;
             }
+
             case FUNC_REJECT_JOIN: { 
                 char target_user[128];
                 printf("Enter username to reject: "); fflush(stdout); safeInput(target_user, sizeof(target_user));
+                if (strlen(target_user) == 0) continue;
+
                 snprintf(cmd, sizeof(cmd), "JOIN_REJECT %s", target_user);
+                if (send_line(sock, cmd) < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+                    printf("%s", pretty);
+                }
                 break;
             }
+
             case FUNC_INVITE_MEMBER: { 
                 char target_user[128];
                 printf("Enter username to invite: "); fflush(stdout); safeInput(target_user, sizeof(target_user));
+                
                 snprintf(cmd, sizeof(cmd), "INVITE %s", target_user);
+                if (send_line(sock, cmd) < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+                    printf("%s", pretty);
+                }
                 break;
             }
+
             case FUNC_ACCEPT_INVITE: { 
                 char team_name[128];
                 printf("Enter team name to accept invite: "); fflush(stdout); safeInput(team_name, sizeof(team_name));
+                
                 snprintf(cmd, sizeof(cmd), "INVITE_ACCEPT %s", team_name);
+                if (send_line(sock, cmd) < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+                    printf("%s", pretty);
+                }
                 break;
             }
+
             case FUNC_REJECT_INVITE: { 
                 char team_name[128];
                 printf("Enter team name to reject invite: "); fflush(stdout); safeInput(team_name, sizeof(team_name));
+                
                 snprintf(cmd, sizeof(cmd), "INVITE_REJECT %s", team_name);
+                if (send_line(sock, cmd) < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+                    printf("%s", pretty);
+                }
                 break;
             }
 
             default: {
                 printf("Invalid choice, please try again.\n");
-                continue;
-            }
-        }
-
-        /* =========================================
-         * GỬI LỆNH VÀ NHẬN PHẢN HỒI
-         * ========================================= */
-        if (strlen(cmd) > 0) {
-            if (send_line(sock, cmd) < 0) {
-                perror("send() error");
                 break;
             }
-
-            if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
-                int code;
-                
-                if (sscanf(recvbuf, "%d", &code) == 1) {
-                    
-                    if (code == RESP_LIST_TEAMS_OK || code == RESP_TEAM_MEMBERS_LIST_OK) {
-                        char *payload = strchr(recvbuf, ' ');
-                        if (payload) {
-                            printf("\n>>> SERVER RESPONSE:\n%s\n", payload + 1);
-                        } else {
-                            printf("\n>>> SERVER RESPONSE: (Empty List)\n");
-                        }
-                        goto end_loop; 
-                    }
-                }
-
-                char pretty[1024];
-                beautify_result(recvbuf, pretty, sizeof(pretty));
-                printf("\n>>> SERVER RESPONSE:\n%s\n", pretty);
-                
-                if (sscanf(recvbuf, "%d", &code) == 1) {
-                    if (code == RESP_WHOAMI_OK) {
-                        char current_user[128];
-                        if (sscanf(recvbuf, "%*d %127s", current_user) == 1) {
-                            printf("Logged in as: %s\n", current_user);
-                        }
-                    }
-                    else if (code == RESP_COIN_OK) {
-                        long coin;
-                        if (sscanf(recvbuf, "%*d %ld", &coin) == 1) {
-                             printf("Your coin balance: %ld\n", coin);
-                        }
-                    }
-                    else if (code == RESP_ARMOR_INFO_OK) {
-                        int t1, v1, t2, v2;
-                        if(sscanf(recvbuf, "%*d %d %d %d %d", &t1, &v1, &t2, &v2) == 4) {
-                             printf("=== Your Ship Armor ===\n");
-                             printf("Slot 1: Type=%d, Value=%d\n", t1, v1);
-                             printf("Slot 2: Type=%d, Value=%d\n", t2, v2);
-                        }
-                    }
-                }
-            }
-            
-            end_loop:;
         }
         
         printf("\n");
@@ -311,4 +483,6 @@ int main(int argc, char *argv[]) {
     close(sock);
     printf("Client terminated.\n");
     return EXIT_SUCCESS;
+
 }
+

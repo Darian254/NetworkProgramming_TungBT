@@ -8,7 +8,6 @@
 #include "hash.h"
 #include "users_io.h"
 #include "config.h"
-#include "users.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -41,7 +40,6 @@ UserTable* initUserTable(size_t size) {
 void freeUserTable(UserTable *ut) {
     if (!ut) return;
     
-    pthread_mutex_lock(&user_mutex);
     for (size_t i = 0; i < ut->size; i++) {
         User *curr = ut->table[i];
         while (curr) {
@@ -52,7 +50,6 @@ void freeUserTable(UserTable *ut) {
     }
     free(ut->table);
     free(ut);
-    pthread_mutex_unlock(&user_mutex);
 }
 
 bool rehashUserTable(UserTable *ut, size_t new_size) {
@@ -84,15 +81,12 @@ bool rehashUserTable(UserTable *ut, size_t new_size) {
 // TODO : insertUser should also write to file?
 bool insertUser(UserTable *ut, User *user) {
     if (!ut || !user) return false;
-    
-    pthread_mutex_lock(&user_mutex);
-    
+
     // Check load factor before inserting
     double load_factor = (double)(ut->count + 1) / ut->size;
     if (load_factor > 0.75) {
         size_t new_size = ut->size * 2;
         if (!rehashUserTable(ut, new_size)) {
-            pthread_mutex_unlock(&user_mutex);
             return false;
         }
     }
@@ -101,8 +95,6 @@ bool insertUser(UserTable *ut, User *user) {
     user->next = ut->table[idx];
     ut->table[idx] = user;
     ut->count++;
-    
-    pthread_mutex_unlock(&user_mutex);
     return true;
 }
 
@@ -110,21 +102,16 @@ bool insertUser(UserTable *ut, User *user) {
 // TODO : find co can mutex ko?
 User* findUser(UserTable *ut, const char *username) {
     if (!ut || !username) return NULL;
-    
-    pthread_mutex_lock(&user_mutex);
-    
     unsigned long idx = hashFunc(username) % ut->size;
     User *curr = ut->table[idx];
     
     while (curr) {
         if (strcmp(curr->username, username) == 0) {
-            pthread_mutex_unlock(&user_mutex);
             return curr;
         }
         curr = curr->next;
     }
     
-    pthread_mutex_unlock(&user_mutex);
     return NULL;
 }
 
@@ -167,17 +154,13 @@ int updateUserCoin(UserTable *ut, const char *username, long delta) {
     User *user = findUser(ut, username);
     if (!user) return -1;
     
-    pthread_mutex_lock(&user_mutex);
-    
     if (user->coin + delta < 0) {
-        pthread_mutex_unlock(&user_mutex);
         return -2;  // Insufficient coin
     }
     
     user->coin += delta;
     user->updated_at = time(NULL);
-    
-    pthread_mutex_unlock(&user_mutex);
+
     return 0;
 }
 
@@ -185,11 +168,8 @@ int updateUserCoin(UserTable *ut, const char *username, long delta) {
 bool lockUser(UserTable *ut, const char *username) {
     User *user = findUser(ut, username);
     if (!user) return false;
-    
-    pthread_mutex_lock(&user_mutex);
     user->status = USER_BANNED;
     user->updated_at = time(NULL);
-    pthread_mutex_unlock(&user_mutex);
     
     return true;
 }
@@ -198,11 +178,8 @@ bool lockUser(UserTable *ut, const char *username) {
 bool unlockUser(UserTable *ut, const char *username) {
     User *user = findUser(ut, username);
     if (!user) return false;
-    
-    pthread_mutex_lock(&user_mutex);
     user->status = USER_ACTIVE;
     user->updated_at = time(NULL);
-    pthread_mutex_unlock(&user_mutex);
     
     return true;
 }
