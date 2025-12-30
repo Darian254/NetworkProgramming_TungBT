@@ -105,6 +105,7 @@ typedef enum {
     RESP_INVITE_QUEUE_FULL = 329, /**< Invite queue is full */
     RESP_MEMBER_KICK_NOT_IN_TEAM = 330, /**< Member to kick not found */
     RESP_INVITE_NOT_FOUND = 333,   /**< Invitation not found */
+    RESP_NOT_FOUND_REQUEST = 336, /**< Join request not found */
     
     /* Client error codes - Registration */
     RESP_USERNAME_EXISTS = 331,   /**< Username already exists */
@@ -180,13 +181,16 @@ static const ResponseMessage RESPONSE_MESSAGES[] = {
     {RESP_COIN_OK,           "Your coin balance retrieved successfully."},
     {RESP_ARMOR_INFO_OK,     "Your armor information retrieved successfully."},
     {RESP_BUY_ITEM_OK,       "Item purchased successfully."},
+    {RESP_LIST_TEAMS_OK,    "Team list retrieved successfully."},
+    {RESP_TEAM_MEMBERS_LIST_OK,   "Team members list retrieved successfully."},
+    {RESP_REPAIR_OK,         "Ship repaired successfully."},
     
     /* Command/Syntax errors */
     {RESP_BAD_COMMAND,       "Unknown or invalid command."},
     {RESP_SYNTAX_ERROR,      "Syntax error: invalid command format."},
     {RESP_PLAYER_NOT_FOUND,  "Player does not exist."},
     {RESP_ALREADY_IN_TEAM,   "Already in a team."},
-    
+    {RESP_NOT_FOUND_REQUEST, "Join request not found."},
     /* Authentication errors */
     {RESP_START_MATCH_OK,    "Match started successfully."},
     {RESP_MATCH_RESULT_OK,   "Match result retrieved successfully."},

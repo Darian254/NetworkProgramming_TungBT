@@ -322,7 +322,7 @@ void command_routes(int client_sock, char *command) {
     }
     else if (strcmp(type, "JOIN_APPROVE") == 0) {
         if (!payload || strlen(payload) == 0) response_code = RESP_SYNTAX_ERROR;
-        else response_code = handle_join_approve(session, payload);
+        else response_code = handle_join_approve(session, payload, app_context_get_user_table());
         snprintf(response, sizeof(response), "%d\r\n", response_code);
         log_activity("JOIN_APPROVE", session->username, session->isLoggedIn, payload, response_code);
     }
@@ -354,7 +354,7 @@ void command_routes(int client_sock, char *command) {
     }
     else if (strcmp(type, "INVITE") == 0) {
         if (!payload || strlen(payload) == 0) response_code = RESP_SYNTAX_ERROR;
-        else response_code = handle_invite(session, payload);
+        else response_code = handle_invite(session, payload, app_context_get_user_table());
         snprintf(response, sizeof(response), "%d\r\n", response_code);
         log_activity("INVITE", session->username, session->isLoggedIn, payload, response_code);
     }

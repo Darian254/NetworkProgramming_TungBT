@@ -56,7 +56,7 @@ int handle_join_request(ServerSession *session, const char *team_name);
  * @brief Handle JOIN_APPROVE command
  * Team creator approves a join request
  */
-int handle_join_approve(ServerSession *session, const char *username);
+int handle_join_approve(ServerSession *session, const char *username, UserTable *user_table);
 
 /**
  * @brief Handle JOIN_REJECT command
@@ -68,7 +68,7 @@ int handle_join_reject(ServerSession *session, const char *username);
  * @brief Handle INVITE command
  * Team creator invites a player to join
  */
-int handle_invite(ServerSession *session, const char *username);
+int handle_invite(ServerSession *session, const char *username, UserTable *user_table);
 
 /**
  * @brief Handle INVITE_ACCEPT command
