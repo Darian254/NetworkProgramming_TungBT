@@ -1,0 +1,58 @@
+Port 16-bit => htons
+IP 32-bit => htonl
+recv : trả về số byte đã nhận
+fgets: đọc 1 dòng từ bàn phím
+
+int pthread_create(
+    pthread_t *thread,//nơi lưu id luồng
+    const pthread_attr_t *attr,//cấu hình luồng
+    void *(*start_routine)(void *),//hàm sẽ chạy
+    void *arg//dữ liệu truywwnf cho luồng
+);
+
+
+// challenge 
+
+Hàm này xử lý yêu cầu gửi challenge (thách đấu) từ team của user hiện tại tới một team khác.
+
+Chỉ người tạo team (creator) mới được gửi challenge
+
+Trả về mã phản hồi (response code) cho client
+
+Ghi lại ID của challenge vừa tạo thông qua con trỏ new_challenge_id
+
+
+
+Xử lý yêu cầu chấp nhận challenge (thách đấu).
+
+Điều kiện:
+
+User phải đăng nhập
+
+Challenge phải tồn tại
+
+Challenge chưa được phản hồi
+
+User phải là leader (creator) của đội nhận thách đấu
+
+
+
+chest_logic.c
+  // Duyệt danh sách Session để gửi cho những người trong trận đấu
+    /* SAU KHI MERGE:
+    SessionNode *current = get_all_sessions(); // Hàm giả định lấy list session
+    while (current) {
+        if (current->session.isLoggedIn && current->session.current_match_id == match_id) {
+            connection_send(current->session.socket_fd, notify, strlen(notify));
+        }
+        current = current->next;
+    }
+    //(49-58)
+       // 1. Cập nhật Coin cho người chơi (Lấy từ UserTable trong app_context)
+    /* SAU KHI MERGE:
+    User *u = findUser(g_user_table, session->username);
+    u->coin += reward;
+    int current_player_coins = u->coin;
+    *///(85-91)
+
+strcasecmp: so sánh chuỗi không phân biệt hoa thường
