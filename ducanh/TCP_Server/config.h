@@ -25,8 +25,9 @@ typedef enum {
     FUNC_CHECK_COIN = 5,   /**< Check my coin balance */
     FUNC_CHECK_ARMOR = 6,  /**< Check my ship armor */
     FUNC_BUY_ARMOR = 7,     /**< Buy armor for my ship */
-    FUNC_START_MATCH = 8,  /**< Start a match */
-    FUNC_GET_MATCH_RESULT = 9 /**< Check match result */
+    FUNC_BUY_WEAPON = 8,    /**< Buy weapon ammo for my ship */
+    FUNC_START_MATCH = 9,  /**< Start a match */
+    FUNC_GET_MATCH_RESULT = 10 /**< Check match result */
 } FunctionId;
 
 /**
@@ -71,13 +72,13 @@ typedef enum {
     RESP_INTERNAL_ERROR = 500,    /**< Internal server error */
     RESP_DATABASE_ERROR = 501,    /**< Database error */
     RESP_SERVER_BUSY = 503,       /**< Server too busy */
-    RESP_NOT_IN_MATCH = 503,      /**< Not in a match */
-    RESP_MATCH_STATE_ERROR = 504, /**< Match state does not allow action */
+    RESP_NOT_IN_MATCH = 504,      /**< Not in a match */
+    RESP_MATCH_STATE_ERROR = 505, /**< Match state does not allow action */
     
     /* Shop/Item error codes */
     RESP_ARMOR_NOT_FOUND = 520,   /**< Armor type does not exist */
     RESP_NOT_ENOUGH_COIN = 521,   /**< Not enough coins */
-    RESP_ARMOR_SLOT_FULL = 522    /**< Armor slots full (max 2) */
+    RESP_ARMOR_SLOT_FULL = 522,   /**< Armor slots full (max 2) */
 } ResponseCode;
 
 /**
@@ -139,7 +140,8 @@ static const ResponseMessage RESPONSE_MESSAGES[] = {
     /* Shop errors */
     {RESP_ARMOR_NOT_FOUND,   "Armor type does not exist."},
     {RESP_NOT_ENOUGH_COIN,   "Not enough coins to complete the purchase."},
-    {RESP_ARMOR_SLOT_FULL,   "Armor slots full (max 2)."}
+    {RESP_ARMOR_SLOT_FULL,   "Armor slots full (max 2)."},
+    {RESP_BUY_ITEM_FAILED,   "Item purchase failed."}
 };
 
 #define RESPONSE_MESSAGES_COUNT (sizeof(RESPONSE_MESSAGES) / sizeof(RESPONSE_MESSAGES[0]))

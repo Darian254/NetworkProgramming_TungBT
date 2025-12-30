@@ -81,6 +81,13 @@ typedef enum {
     ARMOR_ENHANCED = 2       // price 2000, armor 1500
 } ArmorType;
 
+// Weapon Type
+typedef enum {
+    WEAPON_CANNON = 0,
+    WEAPON_LASER = 1,
+    WEAPON_MISSILE = 2
+} WeaponType;
+
 // Item type
 typedef enum {
     ITEM_WEAPON = 0,
@@ -285,6 +292,7 @@ Ship* create_ship(int match_id, const char *username);
 void delete_ships_by_match(int match_id);
 int ship_take_damage(Ship *s, int damage);
 ResponseCode ship_buy_armor(UserTable *user_table, Ship *ship, const char *username, ArmorType type);
+ResponseCode ship_buy_weapon(UserTable *user_table, Ship *ship, const char *username, WeaponType type);
 
 /* Item helpers */
 int get_armor_price(ArmorType type);

@@ -12,6 +12,9 @@ void displayMenu() {
   printf("5. Check my coin\n");
   printf("6. Check my armor\n");
   printf("7. Buy armor\n");
+  printf("8. Buy weapon\n");
+  printf("9. Start match\n");
+  printf("10. Get match result\n");
   printf("=========================\n");
   printf("Select an option: ");
 }

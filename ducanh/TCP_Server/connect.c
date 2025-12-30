@@ -85,24 +85,31 @@ void connection_create(int client_sock) {
 void connection_on_read(int client_sock) {
     connection_t *conn = connections[client_sock];
     if(!conn) return;
-    while(1) {
+    while (1) {
         char line[BUFF_SIZE];
         ssize_t m = recv_line(client_sock, line, sizeof(line));
+
         if (m < 0) {
+            // Treat anything other than EAGAIN/EWOULDBLOCK as hard error/EOF
             if (errno == EWOULDBLOCK || errno == EAGAIN) {
-                break; // No more data to read
-            } else {
-                perror("recv_line() error:");
-                connection_close(client_sock);
-                return;
+                // Drained all available data for now (edge-triggered)
+                break;
             }
-        } else if (m == 0) {
-            // Remote closed connection or empty line
-            break;
-        } else {
+            perror("recv_line() error");
+            connection_close(client_sock);
+            return;
+        }
+
+        if (m > 0) {
             // Process a full command line (without CRLF)
             command_routes(client_sock, line);
+            // Continue looping to drain any pipelined commands
+            continue;
         }
+
+        // m == 0 is not expected from recv_line(); treat conservatively
+        // Break to avoid busy loop; next EPOLLIN will resume if more data arrives
+        break;
     }
 }
 
@@ -111,7 +118,7 @@ void connection_on_write(int client_sock) {
     if(!conn) return;
 
     while (conn->write_buffer_len > 0) {
-        ssize_t n = send_line(client_sock, conn->write_buffer);
+        ssize_t n = send(client_sock, conn->write_buffer, conn->write_buffer_len, 0);
         if (n < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN) {
                 break; // Socket not ready for writing
@@ -149,6 +156,8 @@ int connection_send(int client_sock, const char *response, size_t len) {
 void connection_close(int client_sock) {
     connection_t *conn = connections[client_sock];
     if(!conn) return;
+    // Remove associated session to avoid leaks
+    remove_session_by_socket(client_sock);
     epoll_del(client_sock);
     close(client_sock);
     free(conn);
