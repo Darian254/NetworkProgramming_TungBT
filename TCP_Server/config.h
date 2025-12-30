@@ -135,13 +135,36 @@ typedef enum {
     RESP_ARMOR_SLOT_FULL = 522,   /**< Armor slots full (max 2) */
 
     /* HP repair error codes */
-    RESP_ALREADY_FULL_HP = 340   /**< Already full HP */
+    RESP_ALREADY_FULL_HP = 340,   /**< Already full HP */
 
     RESP_WEAPON_NOT_EQUIPPED = 337,  /**< Weapon not equipped */
     RESP_OUT_OF_AMMO = 338,          /**< Out of ammo */
     RESP_INVALID_TARGET = 343,       /**< Invalid target */
     RESP_TARGET_DESTROYED = 344,     /**< Target destroyed */
     RESP_NOT_YOUR_TURN = 335,        /**< Not your turn */
+    RESP_CHEST_DROP_OK = 140,     
+    
+    /* Error codes - Chest (Dự phòng cho logic mở rương) */
+    RESP_CHEST_NOT_FOUND = 440,    /**< Chest ID invalid */
+    RESP_CHEST_ALREADY_OPENED = 441, 
+    RESP_WRONG_ANSWER = 442,       
+    RESP_CHEST_OPEN_OK = 127,
+    RESP_MATCH_FINISHED = 325,
+    RESP_CHEST_OPEN_FAIL = 339,
+    RESP_CHEST_BROADCAST = 210,
+
+    RESP_CHALLENGE_SENT = 130,      /**< Challenge sent successfully */
+    RESP_CHALLENGE_ACCEPTED = 131,  /**< Challenge accepted */
+    RESP_CHALLENGE_DECLINED = 132,  /**< Challenge declined */
+    RESP_CHALLENGE_CANCELED = 133,  /**< Challenge canceled */
+
+    /* Error codes - Challenge */
+    RESP_CHALLENGE_NOT_FOUND = 332, /**< Challenge ID does not exist */
+    RESP_ALREADY_RESPONDED = 333,   /**< Challenge already accepted or declined */
+    RESP_NOT_SENDER = 334,          /**< User is not the sender of this challenge */
+   
+
+
 } ResponseCode;
 
 /**
@@ -240,7 +263,27 @@ static const ResponseMessage RESPONSE_MESSAGES[] = {
     {RESP_ARMOR_SLOT_FULL,   "Armor slots full (max 2)."},
 
     {RESP_ALREADY_FULL_HP,   "Your ship's HP is already full."},
-    {RESP_BUY_ITEM_FAILED,   "Item purchase failed."}
+    {RESP_BUY_ITEM_FAILED,   "Item purchase failed."},
+     
+    //Chest drop and open
+    {RESP_CHEST_DROP_OK,        "140 CHEST_DROP_OK: A treasure chest has appeared!"},
+    {RESP_CHEST_NOT_FOUND,      "440 ERROR: Treasure chest not found."},
+    {RESP_CHEST_ALREADY_OPENED, "441 ERROR: This chest has already been claimed."},
+    {RESP_WRONG_ANSWER,         "442 ERROR: Incorrect answer. Try again!"},
+    {RESP_CHEST_OPEN_OK,        "127 CHEST_OK: Chest opened successfully."},
+    {RESP_MATCH_FINISHED,       "325 ERROR: Match has already finished."},
+    {RESP_CHEST_OPEN_FAIL,      "339 ERROR: Chest has already been opened."},
+    {RESP_CHEST_BROADCAST,      "210 CHEST_COLLECTED: A chest has been collected in the match."},
+
+    //Challenge
+    {RESP_CHALLENGE_SENT,     "130 CHALLENGE_SENT successful."},
+    {RESP_CHALLENGE_ACCEPTED, "131 CHALLENGE_ACCEPTED successful."},
+    {RESP_CHALLENGE_DECLINED, "132 CHALLENGE_DECLINED successful."},
+    {RESP_CHALLENGE_CANCELED, "133 CHALLENGE_CANCELED successful."},
+    
+    {RESP_CHALLENGE_NOT_FOUND, "332 CHALLENGE_NOT_FOUND error."},
+    {RESP_ALREADY_RESPONDED,   "333 ALREADY_RESPONDED (Already accepted/declined/canceled)."},
+    {RESP_NOT_SENDER,          "334 NOT_SENDER: Only the challenger can cancel."}
 };
 
 #define RESPONSE_MESSAGES_COUNT (sizeof(RESPONSE_MESSAGES) / sizeof(RESPONSE_MESSAGES[0]))

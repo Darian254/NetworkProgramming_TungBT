@@ -30,7 +30,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <pthread.h>
-
+#define MAX_WEAPONS 4
+#define MAX_ARMOR_SLOTS 2
 /* ============================================================================
  * MUTEXES
  * ============================================================================ */
@@ -60,9 +61,23 @@ int          match_count = 0;
 Ship         ships[MAX_SHIPS];  // Temporary, in-memory only
 int          ship_count = 0;
 
+Ship active_ships[100];
+int num_active_ships = 0;
 // TODO: UserTable from users.h/c
 UserTable *g_user_table = NULL;
 
+static TreasureChest active_chests[MAX_TEAMS]; 
+static ChestPuzzle puzzles[] = {
+    {"1 + 1 = ?", "2"},             // Đồng
+    {"Thủ đô của Việt Nam?", "Ha Noi"}, // Bạc
+    {"Giao thức tầng giao vận nào tin cậy?", "TCP"} // Vàng
+};
+
+WeaponTemplate weapon_templates[] = {
+    {1, "Pháo",    10, 1000, 50},
+    {2, "Laze",   100, 1000, 10},
+    {3, "Tên lửa", 800, 2000, 1}
+};
 
 /* ============================================================================
  * AUTO-INCREMENT IDs
@@ -167,6 +182,35 @@ int get_armor_value(ArmorType type) {
         default:             return 0;
     }
 }
+
+//Tìm tàu theo id
+Ship* find_ship_by_id(int ship_id) {
+    for (int i = 0; i < num_active_ships; i++) {
+        if (active_ships[i].ship_id == ship_id) {
+            return &active_ships[i];
+        }
+    }
+    return NULL;
+}
+
+
+//Lấy template vũ khí
+WeaponTemplate* get_weapon_template(int weapon_id) {
+    for (int i = 0; i < 3; i++) {
+        if (weapon_templates[i].weapon_id == weapon_id) {
+            return &weapon_templates[i];
+        }
+    }
+    return NULL;
+}
+
+
+void update_ship_state(Ship* ship) {
+    if (ship->health == 0) {
+        printf("[DEBUG] Tàu %d đã bị phá hủy!\n", ship->ship_id);
+    }
+}
+
 
 /* ============================================================================
  * TEAM OPERATIONS
