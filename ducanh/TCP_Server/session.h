@@ -33,8 +33,8 @@ typedef struct {
     char username[MAX_USERNAME];
     int socket_fd;              /**< Socket identifier on server */
     struct sockaddr_in client_addr; /**< Client address */
-    int current_match_id;       /**< Current match ID, -1 if not in match */
     int current_team_id;        /**< Current team ID, -1 if not in team */
+    int current_match_id;       /**< Current match ID, -1 if not in match */
     int coin; //Lượng thêm
 } ServerSession;
 
@@ -164,6 +164,42 @@ int server_handle_whoami(ServerSession *session, char *username_out);
 int server_handle_buyarmor(ServerSession *session, UserTable *ut, int armor_type);
 
 /**
+ * @brief Handle REPAIR command for TCP server
+ * Repairs the player's ship in the current match.
+ *
+ * @param session Pointer to the ServerSession
+ * @param ut Pointer to the UserTable (for coin deduction)
+ * @param repair_amount Amount of HP to repair (from client)
+ * @param out Pointer to RepairResult to store new HP and coin (output)
+ * @return Response code:
+ *   - RESP_REPAIR_OK (132): Success, returns <newHP> <newCoin>
+ *   - RESP_NOT_LOGGED (315): Not logged in
+ *   - RESP_NOT_IN_MATCH (503): Not in any running match
+ *   - RESP_ALREADY_FULL_HP (340): HP is already full
+ *   - RESP_NOT_ENOUGH_COIN (521): Insufficient coins
+ *   - RESP_INTERNAL_ERROR (500): Internal error (ship/user not found)
+ *   - RESP_DATABASE_ERROR (501): Database error (if any DB op fails)
+ */
+int server_handle_repair(ServerSession *session, UserTable *ut, int repair_amount, RepairResult *out);
+
+/**
+ * @brief Handle BUYWEAPON command for TCP server
+ * Purchases weapon ammo for the player's ship in current match
+ * 
+ * @param session Pointer to the ServerSession
+ * @param ut Pointer to the UserTable (for coin deduction)
+ * @param weapon_type Weapon type to purchase (0=cannon, 1=laser, 2=missile)
+ * @return Response code:
+ *   - RESP_BUY_ITEM_OK (334): Success
+ *   - RESP_NOT_LOGGED (221): Not logged in
+ *   - RESP_NOT_IN_MATCH (223): Not in any running match
+ *   - RESP_INTERNAL_ERROR (500): Ship not found or other error
+ *   - RESP_NOT_ENOUGH_COIN (521): Insufficient coins
+ *   - RESP_BUY_ITEM_FAILED (523): Purchase failed (e.g. maxed out)
+ */
+int server_handle_buy_weapon(ServerSession *session, UserTable *ut, int weapon_type);
+
+/**
  * @brief Handle START_MATCH command - creates custom match with specified opponent
  * Both teams should coordinate beforehand (via chat/external means) to exchange team IDs
  *
@@ -190,7 +226,6 @@ int server_handle_start_match(ServerSession *session, int opponent_team_id);
 int server_handle_get_match_result(ServerSession *session, int match_id);
 
 /**
->>>>>>> cf8f787d1e1c2bb308b11e327c28e63ed19f2cdf
  * @brief Check if session is logged in
  * 
  * @param session Pointer to the ServerSession

@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 void displayMenu() {
+
     printf("\n==================================\n");
     printf("           MAIN MENU              \n");
     printf("==================================\n");
@@ -15,6 +16,8 @@ void displayMenu() {
     printf(" 5. Check my coin\n");
     printf(" 6. Check my armor\n");
     printf(" 7. Buy armor\n");
+    // TODO: Repair HP - fix later
+    printf("8. Repair HP----------------------sua lai --------------\n");
     printf("----------------------------------\n");
     printf(" [TEAM OPERATIONS]\n");
     printf(" 8. Create Team\n");

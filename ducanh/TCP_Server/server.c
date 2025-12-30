@@ -10,11 +10,12 @@
 #include "epoll.h"
 #include "config.h"
 #include "app_context.h"
+#include <signal.h>
 #include "session.h"
 #include "users.h"
 #include "team_handler.h" // Để xử lý team
 #include "util.h"
-#include "ship_defs.h"//luong
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,11 +24,26 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include "users.h"
+#include "users_io.h"
+#include "hash.h"
+#include "file_transfer.h"
+#include "session.h"
+#include "config.h"
+#include "db_schema.h"
+#include "db.c"
 #include <arpa/inet.h>
 #include <sys/ioctl.h>
 #include <time.h> 
+#include "ship_defs.h"
 
 static int listen_sock = -1;
+
+static void handle_signal(int sig) {
+    (void)sig;
+    // Request epoll loop to stop; cleanup happens after server_run returns
+    epoll_request_stop();
+}
 
 /* * 2. HÀM XỬ LÝ LOGIC (LẤY TỪ LOCAL)
  * Lưu ý: Đã bỏ 'static' và bỏ 'mutex' vì Epoll chạy đơn luồng an toàn
@@ -168,6 +184,21 @@ int handle_client_command(ServerSession *session, const char *line,
         else response_code = handle_invite_reject(session, arg1);
         snprintf(response_buf, response_size, "%d", response_code);
     }
+    else if (strcmp(cmd, "REPAIR") == 0) {
+        if (parsed < 2) {
+            response_code = RESP_SYNTAX_ERROR;
+            snprintf(response_buf, response_size, "%d", response_code);
+        } else {
+            int repair_amount = atoi(arg1);
+            RepairResult repair_result = {0};
+            response_code = server_handle_repair(session, g_user_table, repair_amount, &repair_result);
+            if (response_code == RESP_REPAIR_OK) {
+                snprintf(response_buf, response_size, "%d %d %d", response_code, repair_result.hp, repair_result.coin);
+            } else {
+                snprintf(response_buf, response_size, "%d", response_code);
+            }
+        }
+    }
     else {
         response_code = RESP_SYNTAX_ERROR;
         snprintf(response_buf, response_size, "%d", response_code);
@@ -260,15 +291,22 @@ void server_shutdown(void) {
 }
 
 int main(int argc, char *argv[]) {
+    (void)argc; // PORT is from config.h, not command line
+    (void)argv;
+
+    // Register signal handlers for graceful shutdown
+    signal(SIGINT, handle_signal);
+    signal(SIGTERM, handle_signal);
     (void)argc; (void)argv;
 
     if (server_init() != 0) {
         fprintf(stderr, "[ERROR] Server initialization failed\n");
         return EXIT_FAILURE;
     }
+
     load_all_ships(); 
     printf("[INFO] Game Data Loaded (Ships & Weapons).\n");
-    
+
     server_run();
     server_shutdown();
 

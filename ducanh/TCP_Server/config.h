@@ -2,6 +2,7 @@
 #define CONFIG_H
 
 #include <stddef.h>
+
 #define BUFF_SIZE 4096
 #define PORT 5500
 #define BACKLOG 32
@@ -23,6 +24,11 @@ typedef enum {
     FUNC_CHECK_COIN = 5,    /**< Check my coin balance */
     FUNC_CHECK_ARMOR = 6,   /**< Check my ship armor */
     FUNC_BUY_ARMOR = 7,     /**< Buy armor for my ship */
+
+    // TODO: Repair HP - fix later
+    // FUNC_REPAIR = 8        /**< Repair HP */
+
+    
     /* Team functions */
     FUNC_CREATE_TEAM = 8,   /**< Create new team */
     FUNC_DELETE_TEAM = 9,   /**< Delete team */
@@ -68,10 +74,12 @@ typedef enum {
     RESP_COIN_OK = 202,           /**< Get coin successful */
     RESP_ARMOR_INFO_OK = 203,     /**< Get armor info successful */
     RESP_BUY_ITEM_OK = 334,       /**< Buy item successful */
+    
+    RESP_REPAIR_OK = 132,         /**< Repair successful */
 
     /* Client error codes - Command/Syntax */
     RESP_BAD_COMMAND = 300,       /**< Unknown/invalid command */
-    // RESP_SYNTAX_ERROR = 301,      /**< Syntax error */
+    RESP_SYNTAX_ERROR = 301,      /**< Syntax error */
     RESP_PLAYER_NOT_FOUND = 302,  /**< Player does not exist */
     RESP_ALREADY_IN_TEAM = 303,   /**< Already in a team */
     
@@ -91,7 +99,7 @@ typedef enum {
     
     /* Client error codes - Team Operations */
     RESP_TEAM_NOT_FOUND = 323,    /**< Team does not exist */
-    // RESP_NOT_CREATOR = 326,       /**< Not the team creator */
+    RESP_NOT_CREATOR = 326,       /**< Not the team creator */
     RESP_NOT_IN_TEAM = 327,       /**< Not in any team */
     RESP_TEAM_FULL = 328,         /**< Team is full (max members reached) */
     RESP_INVITE_QUEUE_FULL = 329, /**< Invite queue is full */
@@ -107,7 +115,7 @@ typedef enum {
     RESP_WEAK_PASSWORD = 403,     /**< Weak password */
     
     /* Match/Team error codes */
-    // RESP_TEAM_NOT_FOUND = 410,    /**< Team not found */
+    RESP_TEAM_NOT_FOUND = 410,    /**< Team not found */
     RESP_OPPONENT_NOT_FOUND = 411, /**< Opponent team not found */
     RESP_TEAM_IN_MATCH = 412,     /**< Team already in a match */
     RESP_MATCH_CREATE_FAILED = 413, /**< Failed to create match */
@@ -119,13 +127,16 @@ typedef enum {
     RESP_INTERNAL_ERROR = 500,    /**< Internal server error */
     RESP_DATABASE_ERROR = 501,    /**< Database error */
     RESP_SERVER_BUSY = 503,       /**< Server too busy */
-    RESP_NOT_IN_MATCH = 503,      /**< Not in a match */
-    RESP_MATCH_STATE_ERROR = 504, /**< Match state does not allow action */
+    RESP_NOT_IN_MATCH = 504,      /**< Not in a match */
+    RESP_MATCH_STATE_ERROR = 505, /**< Match state does not allow action */
     
     /* Shop/Item error codes */
     RESP_ARMOR_NOT_FOUND = 520,   /**< Armor type does not exist */
     RESP_NOT_ENOUGH_COIN = 521,   /**< Not enough coins */
-    RESP_ARMOR_SLOT_FULL = 522    /**< Armor slots full (max 2) */
+    RESP_ARMOR_SLOT_FULL = 522,   /**< Armor slots full (max 2) */
+
+    /* HP repair error codes */
+    RESP_ALREADY_FULL_HP = 340   /**< Already full HP */
 } ResponseCode;
 
 /**
@@ -138,7 +149,7 @@ typedef struct {
 
 /**
  * @brief Array of response code to message mappings
- *
+ * 
  * This array provides all possible response codes and their 
  * corresponding user-friendly messages.
  */
@@ -221,7 +232,10 @@ static const ResponseMessage RESPONSE_MESSAGES[] = {
     /* Shop errors */
     {RESP_ARMOR_NOT_FOUND,   "Armor type does not exist."},
     {RESP_NOT_ENOUGH_COIN,   "Not enough coins to complete the purchase."},
-    {RESP_ARMOR_SLOT_FULL,   "Armor slots full (max 2)."}
+    {RESP_ARMOR_SLOT_FULL,   "Armor slots full (max 2)."},
+
+    {RESP_ALREADY_FULL_HP,   "Your ship's HP is already full."}
+    {RESP_BUY_ITEM_FAILED,   "Item purchase failed."}
 };
 
 #define RESPONSE_MESSAGES_COUNT (sizeof(RESPONSE_MESSAGES) / sizeof(RESPONSE_MESSAGES[0]))

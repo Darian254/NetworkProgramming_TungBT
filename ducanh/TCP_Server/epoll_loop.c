@@ -12,9 +12,11 @@
 #include <sys/epoll.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <signal.h>
 
 static int epollfd;
 static int listen_sock;
+static volatile sig_atomic_t epoll_should_stop = 0;
 
 void epoll_init(int listen_fd) {
     listen_sock = listen_fd;
@@ -61,8 +63,16 @@ static void handle_accept(void) {
 void epoll_run(void) {
     struct epoll_event events[MAX_EVENTS];
     while (1) {
+        if (epoll_should_stop) {
+            break;
+        }
         int n = epoll_wait(epollfd, events, MAX_EVENTS, -1);
         if (n < 0) {
+            if (errno == EINTR) {
+                // Interrupted by signal; check stop flag
+                if (epoll_should_stop) break;
+                continue;
+            }
             perror("epoll_wait() error:");
             break;
         }
@@ -92,4 +102,8 @@ int epoll_mod(int fd, unsigned int events) {
 
 int epoll_del(int fd) {
     return epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, NULL);
+}
+
+void epoll_request_stop(void) {
+    epoll_should_stop = 1;
 }

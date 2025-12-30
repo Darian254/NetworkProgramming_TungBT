@@ -6,9 +6,11 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include "ui.h"
+
 #include "../TCP_Server/config.h"     
 #include "../TCP_Server/file_transfer.h"
 #include "../TCP_Server/util.h"
+
 
 #define BUFF_SIZE 8192 // Tăng kích thước buffer để nhận danh sách dài
 
@@ -305,9 +307,6 @@ int main(int argc, char *argv[]) {
                 break;
             }
 
-            /* ==================================================
-             * GROUP 3: TEAM MANAGEMENT (Của Local - Viết lại theo Remote)
-             * ================================================== */
             case FUNC_CREATE_TEAM: { 
                 char team_name[128];
                 printf("Enter new team name: "); fflush(stdout); safeInput(team_name, sizeof(team_name));
@@ -341,6 +340,36 @@ int main(int argc, char *argv[]) {
                         printf("\n>>> TEAM LIST:\n%s\n", payload + 1);
                     } else {
                         printf("\n>>> TEAM LIST: (Empty)\n");
+                    }
+                }
+                break;
+            }
+            case FUNC_REPAIR: { /* Repair HP */
+                printf("Enter HP amount to repair: ");
+                fflush(stdout);
+                char hp_input[16];
+                safeInput(hp_input, sizeof(hp_input));
+                int repair_amount = atoi(hp_input);
+                if (repair_amount <= 0) {
+                    printf("Invalid repair amount.\n");
+                    break;
+                }
+                char cmd[64];
+                snprintf(cmd, sizeof(cmd), "REPAIR %d", repair_amount);
+                if (send_line(sock, cmd) < 0) {
+                    perror("send() error");
+                    break;
+                }
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    int code, newHP = 0;
+                    long newCoin = 0;
+                    int n = sscanf(recvbuf, "%d %d %ld", &code, &newHP, &newCoin);
+                    if (code == RESP_REPAIR_OK && n == 3) {
+                        printf("Repair successful! New HP: %d, New Coin: %ld\n", newHP, newCoin);
+                    } else {
+                        char pretty[1024];
+                        beautify_result(recvbuf, pretty, sizeof(pretty));
+                        printf("%s", pretty);
                     }
                 }
                 break;

@@ -36,6 +36,7 @@
  * ============================================================================ */
 pthread_mutex_t team_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t ship_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t g_user_table_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /* ============================================================================
  * IN-MEMORY STORAGE
@@ -474,6 +475,53 @@ ResponseCode ship_buy_armor(UserTable *user_table, Ship *ship, const char *usern
     return RESP_BUY_ITEM_OK;  // 334
 }
 
+ResponseCode ship_buy_weapon(UserTable *user_table, Ship *ship, const char *username, WeaponType type) {
+    if(!user_table || !ship || !username) return RESP_INTERNAL_ERROR;
+    int price = 0;
+    switch(type) {
+        case WEAPON_CANNON:
+            price = CANNON_AMMO_PRICE;
+            break;
+        case WEAPON_LASER:
+            price = LASER_PRICE;
+            break;
+        case WEAPON_MISSILE:
+            price = MISSILE_PRICE;
+            break;
+        default:
+            return RESP_INTERNAL_ERROR;
+    }
+    User *u = findUser(user_table, username);
+    if(!u) return RESP_ACCOUNT_NOT_FOUND;
+    if(u->coin < price) {
+        return RESP_NOT_ENOUGH_COIN;
+    }
+    int coin_result = updateUserCoin(user_table, username, -price);
+    if(coin_result != 0) {
+        return RESP_DATABASE_ERROR;
+    }
+    switch(type) {
+        case WEAPON_CANNON:
+            ship->cannon_ammo += CANNON_AMMO_PER_PURCHASE;
+            break;
+        case WEAPON_LASER:
+            if(ship->laser_count >= LASER_MAX) {
+                return RESP_BUY_ITEM_FAILED;
+            }
+            ship->laser_count += 1;
+            break;
+        case WEAPON_MISSILE:
+            if(ship->missile_count >= MISSILE_MAX) {
+                return RESP_BUY_ITEM_FAILED;
+            }
+            ship->missile_count += 1;
+            break;
+        default:
+            return RESP_BUY_ITEM_FAILED;
+    }
+    return RESP_BUY_ITEM_OK;
+}
+
 /* ============================================================================
  * MATCH OPERATIONS
  * ============================================================================ */
@@ -525,3 +573,4 @@ void end_match(int match_id, int winner_team_id) {
     // Delete all ships for this match
     delete_ships_by_match(match_id);
 }
+
