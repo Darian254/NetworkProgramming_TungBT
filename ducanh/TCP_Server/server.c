@@ -32,6 +32,7 @@
 #include "session.h"
 #include "config.h"
 #include "db_schema.h"
+#include "db.c"
 
 #define BUFF_SIZE 2048
 #define DESIRED_NOFILE_LIMIT 65535
@@ -43,7 +44,7 @@
 
 /* Global resources (protected by mutexes) */
 static UserTable *g_user_table = NULL;
-static pthread_mutex_t g_user_table_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 
 typedef struct {
     pthread_t thread_id;
@@ -198,6 +199,21 @@ static int handle_client_command(ServerSession *session, const char *line,
             response_code = server_handle_buyarmor(session, g_user_table, armor_type);
             pthread_mutex_unlock(&g_user_table_mutex);
             snprintf(response_buf, response_size, "%d", response_code);
+        }
+    }
+    else if (strcmp(cmd, "REPAIR") == 0) {
+        if (parsed < 2) {
+            response_code = RESP_SYNTAX_ERROR;
+            snprintf(response_buf, response_size, "%d", response_code);
+        } else {
+            int repair_amount = atoi(arg1);
+            RepairResult repair_result = {0};
+            response_code = server_handle_repair(session, g_user_table, repair_amount, &repair_result);
+            if (response_code == RESP_REPAIR_OK) {
+                snprintf(response_buf, response_size, "%d %d %d", response_code, repair_result.hp, repair_result.coin);
+            } else {
+                snprintf(response_buf, response_size, "%d", response_code);
+            }
         }
     }
     else {

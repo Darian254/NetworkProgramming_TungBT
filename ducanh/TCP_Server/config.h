@@ -15,7 +15,8 @@ typedef enum {
     FUNC_EXIT   = 4,  /**< Exit program */
     FUNC_CHECK_COIN = 5,   /**< Check my coin balance */
     FUNC_CHECK_ARMOR = 6,  /**< Check my ship armor */
-    FUNC_BUY_ARMOR = 7     /**< Buy armor for my ship */
+    FUNC_BUY_ARMOR = 7,     /**< Buy armor for my ship */
+    FUNC_REPAIR = 8        /**< Repair HP */
 } FunctionId;
 
 /**
@@ -30,6 +31,7 @@ typedef enum {
     RESP_COIN_OK = 202,           /**< Get coin successful */
     RESP_ARMOR_INFO_OK = 203,     /**< Get armor info successful */
     RESP_BUY_ITEM_OK = 334,       /**< Buy item successful */
+    RESP_REPAIR_OK = 132,         /**< Repair successful */
     
     /* Client error codes - Authentication */
     RESP_SYNTAX_ERROR = 301,      /**< Syntax error */
@@ -53,7 +55,10 @@ typedef enum {
     /* Shop/Item error codes */
     RESP_ARMOR_NOT_FOUND = 520,   /**< Armor type does not exist */
     RESP_NOT_ENOUGH_COIN = 521,   /**< Not enough coins */
-    RESP_ARMOR_SLOT_FULL = 522    /**< Armor slots full (max 2) */
+    RESP_ARMOR_SLOT_FULL = 522,   /**< Armor slots full (max 2) */
+
+    /* HP repair error codes */
+    RESP_ALREADY_FULL_HP = 340   /**< Already full HP */
 } ResponseCode;
 
 /**
@@ -102,7 +107,9 @@ static const ResponseMessage RESPONSE_MESSAGES[] = {
     /* Shop errors */
     {RESP_ARMOR_NOT_FOUND,   "Armor type does not exist."},
     {RESP_NOT_ENOUGH_COIN,   "Not enough coins to complete the purchase."},
-    {RESP_ARMOR_SLOT_FULL,   "Armor slots full (max 2)."}
+    {RESP_ARMOR_SLOT_FULL,   "Armor slots full (max 2)."},
+
+    {RESP_ALREADY_FULL_HP,   "Your ship's HP is already full."}
 };
 
 #define RESPONSE_MESSAGES_COUNT (sizeof(RESPONSE_MESSAGES) / sizeof(RESPONSE_MESSAGES[0]))

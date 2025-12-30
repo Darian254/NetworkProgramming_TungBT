@@ -30,6 +30,7 @@
  * ============================================================================ */
 static pthread_mutex_t team_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t ship_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t g_user_table_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /* ============================================================================
  * IN-MEMORY STORAGE (Arrays for game tables)

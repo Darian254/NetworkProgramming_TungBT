@@ -33,8 +33,9 @@ typedef struct {
     char username[MAX_USERNAME];
     int socket_fd;              /**< Socket identifier on server */
     struct sockaddr_in client_addr; /**< Client address */
-    int current_match_id;       /**< Current match ID, -1 if not in match */
     int current_team_id;        /**< Current team ID, -1 if not in team */
+    int current_match_id;       /**< Current match ID, -1 if not in match */
+
 } ServerSession;
 
 /**
@@ -161,6 +162,25 @@ int server_handle_whoami(ServerSession *session, char *username_out);
  *   - RESP_INTERNAL_ERROR (500): Ship not found or other error
  */
 int server_handle_buyarmor(ServerSession *session, UserTable *ut, int armor_type);
+
+/**
+ * @brief Handle REPAIR command for TCP server
+ * Repairs the player's ship in the current match.
+ *
+ * @param session Pointer to the ServerSession
+ * @param ut Pointer to the UserTable (for coin deduction)
+ * @param repair_amount Amount of HP to repair (from client)
+ * @param out Pointer to RepairResult to store new HP and coin (output)
+ * @return Response code:
+ *   - RESP_REPAIR_OK (132): Success, returns <newHP> <newCoin>
+ *   - RESP_NOT_LOGGED (315): Not logged in
+ *   - RESP_NOT_IN_MATCH (503): Not in any running match
+ *   - RESP_ALREADY_FULL_HP (340): HP is already full
+ *   - RESP_NOT_ENOUGH_COIN (521): Insufficient coins
+ *   - RESP_INTERNAL_ERROR (500): Internal error (ship/user not found)
+ *   - RESP_DATABASE_ERROR (501): Database error (if any DB op fails)
+ */
+int server_handle_repair(ServerSession *session, UserTable *ut, int repair_amount, RepairResult *out);
 
 /**
  * @brief Check if session is logged in

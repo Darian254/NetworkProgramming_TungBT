@@ -9,6 +9,7 @@
 #include "users.h"
 #include "users_io.h"
 #include "db_schema.h"  // For FILE_USERS
+#include "db.c"         // For find_current_match_by_username()
 
 /* Global session manager with mutex for thread safety */
 static SessionManager session_mgr = {NULL, 0};
@@ -21,7 +22,7 @@ void initServerSession(ServerSession *s) {
     s->socket_fd = -1;
     memset(&s->client_addr, 0, sizeof(s->client_addr));
     s->current_match_id = -1;
-    s->current_team_id = -1;
+    s->current_team_id = -1;    
 }
 
 int server_handle_login(ServerSession *session, UserTable *ut, const char *username, const char *password) {
@@ -147,13 +148,14 @@ int server_handle_buyarmor(ServerSession *session, UserTable *ut, int armor_type
     }
     
     int match_id = session->current_match_id;
-    if (match_id <= 0) {
-        /* Fallback */
-        match_id = find_current_match_by_username(session->username);
-        if (match_id > 0) {
-            session->current_match_id = match_id; 
-        }
-    }
+    // khong can thiet
+    // if (match_id <= 0) {
+    //     /* Fallback */
+    //     match_id = find_current_match_by_username(session->username);
+    //     if (match_id > 0) {
+    //         session->current_match_id = match_id; 
+    //     }
+    // }
     
     if (match_id <= 0) {
         return RESP_NOT_IN_MATCH;
@@ -170,6 +172,60 @@ int server_handle_buyarmor(ServerSession *session, UserTable *ut, int armor_type
          
     return ship_buy_armor(ut, ship, session->username, armor_type);
 }
+
+int server_handle_repair(ServerSession *session, UserTable *ut, int repair_amount, RepairResult *out) {
+    if (!session || !ut) {
+        return RESP_INTERNAL_ERROR;
+    }
+
+    if (!session->isLoggedIn) {
+        return RESP_NOT_LOGGED;
+    }
+
+    if (repair_amount <= 0) {
+        return RESP_SYNTAX_ERROR;
+    }
+
+    int match_id = session->current_match_id;
+    if (match_id <= 0) { 
+        return RESP_NOT_IN_MATCH;
+    }
+
+    Ship *ship = find_ship(session->current_match_id, session->username);
+    User *user = findUser(ut, session->username);
+
+    if (!ship || !user) {
+        return RESP_INTERNAL_ERROR;
+    }
+
+    int maxHP = SHIP_DEFAULT_HP;
+    int currentHP = ship->hp;
+
+    if (currentHP >= maxHP) {
+        return RESP_ALREADY_FULL_HP;
+    }
+
+    int missingHP = maxHP - currentHP;
+    int actualRepair = (repair_amount < missingHP) ? repair_amount : missingHP;
+    int cost = actualRepair;
+
+    if (user->coin < cost) { 
+        return RESP_NOT_ENOUGH_COIN;
+    }
+
+    /* Apply changes */
+    ship->hp += actualRepair;
+    user->coin -= cost;
+
+    if (out) {
+        out->hp = ship->hp;
+        out->coin = user->coin;
+    }
+
+    // TODO: persist ship & user to DB
+    return RESP_REPAIR_OK;
+}
+
 
 /* ====== Session Manager Implementation ====== */
 

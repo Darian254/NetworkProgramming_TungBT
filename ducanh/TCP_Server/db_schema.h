@@ -208,6 +208,18 @@ typedef struct {
     int         missile_count;                  // Missile count
 } Ship;
 
+
+/* ==========================================================================
+ * STRUCT: RepairResult
+ * Description: Output structure for ship repair operations
+ * Used to return new HP and coin after a successful repair
+ * ==========================================================================
+ */
+typedef struct {
+    int hp;     /**< New HP after repair */
+    int coin;   /**< New coin balance after repair */
+} RepairResult;
+
 /* ============================================================================
  * ITEMS CONFIG (STATIC - READ ONLY)
  * Description: Defines purchasable items
