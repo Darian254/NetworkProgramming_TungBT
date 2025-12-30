@@ -35,7 +35,7 @@ static const ChallengeResponseMessage CHEST_MESSAGES[] = {
     {RESP_CHEST_DROP_OK,        "140 CHEST_DROP_OK: A treasure chest has appeared!"},
     {RESP_CHEST_NOT_FOUND,      "440 ERROR: Treasure chest not found."},
     {RESP_CHEST_ALREADY_OPENED, "441 ERROR: This chest has already been claimed."},
-    {RESP_WRONG_ANSWER,         "442 ERROR: Incorrect answer. Try again!"}
+    {RESP_WRONG_ANSWER,         "442 ERROR: Incorrect answer. Try again!"},
     {RESP_CHEST_OPEN_OK,        "127 CHEST_OK: Chest opened successfully."},
     {RESP_MATCH_FINISHED,       "325 ERROR: Match has already finished."},
     {RESP_CHEST_OPEN_FAIL,      "339 ERROR: Chest has already been opened."},

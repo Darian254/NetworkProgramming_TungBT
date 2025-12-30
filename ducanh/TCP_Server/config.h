@@ -71,7 +71,7 @@ typedef enum {
 
     /* Client error codes - Command/Syntax */
     RESP_BAD_COMMAND = 300,       /**< Unknown/invalid command */
-    RESP_SYNTAX_ERROR = 301,      /**< Syntax error */
+    // RESP_SYNTAX_ERROR = 301,      /**< Syntax error */
     RESP_PLAYER_NOT_FOUND = 302,  /**< Player does not exist */
     RESP_ALREADY_IN_TEAM = 303,   /**< Already in a team */
     
@@ -91,7 +91,7 @@ typedef enum {
     
     /* Client error codes - Team Operations */
     RESP_TEAM_NOT_FOUND = 323,    /**< Team does not exist */
-    RESP_NOT_CREATOR = 326,       /**< Not the team creator */
+    // RESP_NOT_CREATOR = 326,       /**< Not the team creator */
     RESP_NOT_IN_TEAM = 327,       /**< Not in any team */
     RESP_TEAM_FULL = 328,         /**< Team is full (max members reached) */
     RESP_INVITE_QUEUE_FULL = 329, /**< Invite queue is full */
@@ -107,7 +107,7 @@ typedef enum {
     RESP_WEAK_PASSWORD = 403,     /**< Weak password */
     
     /* Match/Team error codes */
-    RESP_TEAM_NOT_FOUND = 410,    /**< Team not found */
+    // RESP_TEAM_NOT_FOUND = 410,    /**< Team not found */
     RESP_OPPONENT_NOT_FOUND = 411, /**< Opponent team not found */
     RESP_TEAM_IN_MATCH = 412,     /**< Team already in a match */
     RESP_MATCH_CREATE_FAILED = 413, /**< Failed to create match */

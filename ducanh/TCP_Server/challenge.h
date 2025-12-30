@@ -20,7 +20,7 @@ typedef enum {
     RESP_CHALLENGE_NOT_FOUND = 332, /**< Challenge ID does not exist */
     RESP_ALREADY_RESPONDED = 333,   /**< Challenge already accepted or declined */
     RESP_NOT_SENDER = 334,          /**< User is not the sender of this challenge */
-    RESP_NOT_LOGGED = 315,
+    // RESP_NOT_LOGGED = 315,
     
 } ChallengeResponseCode;
 

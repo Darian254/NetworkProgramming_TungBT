@@ -187,7 +187,7 @@ void command_routes(int client_sock, char *command) {
             // Gọi Logic (Lưu ý: session ở đây đã có sẵn từ code gốc, không cần tạo mới)
             response_code = server_handle_fire(session, target_id, weapon_id, &result);
             
-            if (response_code == RESP_FIRE_OK) {
+            if (response_code == RESP_COIN_OK) {
                 // 1. Chuẩn bị response cho người bắn (sẽ được gửi ở cuối hàm)
                 snprintf(response, sizeof(response), "131 %d %d %d %d\r\n", 
                          result.target_id, result.damage_dealt, 
