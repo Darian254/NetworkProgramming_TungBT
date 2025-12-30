@@ -10,6 +10,11 @@
 #include "epoll.h"
 #include "config.h"
 #include "app_context.h"
+#include <signal.h>
+#include "session.h"
+#include "users.h"
+#include "team_handler.h" // Để xử lý team
+#include "util.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -264,6 +269,11 @@ void server_shutdown(void) {
 int main(int argc, char *argv[]) {
     (void)argc; // PORT is from config.h, not command line
     (void)argv;
+
+    // Register signal handlers for graceful shutdown
+    signal(SIGINT, handle_signal);
+    signal(SIGTERM, handle_signal);
+    (void)argc; (void)argv;
 
     if (server_init() != 0) {
         fprintf(stderr, "[ERROR] Server initialization failed\n");
