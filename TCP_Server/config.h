@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-#define BUFF_SIZE 4096
+#define BUFF_SIZE 8192
 #define PORT 5500
 #define BACKLOG 32
 #define MAX_CLIENTS 10000
@@ -135,7 +135,7 @@ typedef enum {
     RESP_ARMOR_SLOT_FULL = 522,   /**< Armor slots full (max 2) */
 
     /* HP repair error codes */
-    RESP_ALREADY_FULL_HP = 340   /**< Already full HP */
+    RESP_ALREADY_FULL_HP = 340,   /**< Already full HP */
 
     RESP_WEAPON_NOT_EQUIPPED = 337,  /**< Weapon not equipped */
     RESP_OUT_OF_AMMO = 338,          /**< Out of ammo */

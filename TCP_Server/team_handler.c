@@ -136,7 +136,7 @@ int handle_list_teams(ServerSession *session, char *output_buf, size_t buf_size)
         snprintf(output_buf, buf_size, "No active teams available.");
     }
     
-    return RESP_LOGIN_OK; 
+    return RESP_LIST_TEAMS_OK; 
 }
 
 /* ============================================================================

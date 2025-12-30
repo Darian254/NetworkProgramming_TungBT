@@ -12,9 +12,6 @@
 #include "../TCP_Server/util.h"
 
 
-#define BUFF_SIZE 8192 // Tăng kích thước buffer để nhận danh sách dài
-
-
 /**
  * @brief Print program usage for the TCP client.
  * @param prog Executable name (argv[0]).
