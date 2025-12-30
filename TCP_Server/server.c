@@ -34,7 +34,9 @@
 #include <arpa/inet.h>
 #include <sys/ioctl.h>
 #include <time.h> 
-#include "ship_defs.h"
+
+// Forward declaration to avoid Ship struct conflict with db_schema.h
+void load_all_ships(void);
 
 static int listen_sock = -1;
 

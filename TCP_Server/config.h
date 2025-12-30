@@ -136,6 +136,12 @@ typedef enum {
 
     /* HP repair error codes */
     RESP_ALREADY_FULL_HP = 340   /**< Already full HP */
+
+    RESP_WEAPON_NOT_EQUIPPED = 337,  /**< Weapon not equipped */
+    RESP_OUT_OF_AMMO = 338,          /**< Out of ammo */
+    RESP_INVALID_TARGET = 343,       /**< Invalid target */
+    RESP_TARGET_DESTROYED = 344,     /**< Target destroyed */
+    RESP_NOT_YOUR_TURN = 335,        /**< Not your turn */
 } ResponseCode;
 
 /**

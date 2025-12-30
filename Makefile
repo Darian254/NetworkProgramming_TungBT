@@ -47,7 +47,12 @@ SERVER_OBJS = $(SERVER_DIR)/server.o \
               $(SERVER_DIR)/config.o \
               $(SERVER_DIR)/hash.o \
               $(SERVER_DIR)/db.o \
-              $(SERVER_DIR)/team_handler.o 
+              $(SERVER_DIR)/team_handler.o \
+              $(SERVER_DIR)/game_logic.o \
+              $(SERVER_DIR)/challenge_logic.o \
+              $(SERVER_DIR)/chest_logic.o \
+              $(SERVER_DIR)/networking.o \
+              $(SERVER_DIR)/ship_defs.o 
 
 .PHONY: all clean client server
 

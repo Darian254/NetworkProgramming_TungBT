@@ -6,14 +6,14 @@
 #include "networking.h"
 
 
-extern Ship* find_ship_by_id(int ship_id);
+extern GameShip* find_ship_by_id(int ship_id);
 extern WeaponTemplate* get_weapon_template(int weapon_id);
-extern void update_ship_state(Ship* ship); 
+extern void update_ship_state(GameShip* ship); 
 
 // Xử lý yêu cầu FIRE 
 void process_fire_request(int attacker_id, int target_id, int weapon_id) {
-    Ship* target = find_ship_by_id(target_id);
-    Ship* attacker = find_ship_by_id(attacker_id);
+    GameShip* target = find_ship_by_id(target_id);
+    GameShip* attacker = find_ship_by_id(attacker_id);
     int result_code = 0;
 
     // Kiểm tra tính hợp lệ của mục tiêu và đồng đội
@@ -40,7 +40,7 @@ void process_fire_request(int attacker_id, int target_id, int weapon_id) {
 }
 
 // Tính toán sát thương và trừ đạn
-int calculate_and_update_damage(Ship* attacker, Ship* target, int weapon_id) {
+int calculate_and_update_damage(GameShip* attacker, GameShip* target, int weapon_id) {
     
     // TÌM VŨ KHÍ THEO ID
     int index = -1;

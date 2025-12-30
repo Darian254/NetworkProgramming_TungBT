@@ -5,7 +5,7 @@
 #include "ship_defs.h"
 
 
-Ship active_ships[100];
+GameShip active_ships[100];
 int num_active_ships = 0;
 
 //Template vũ khí
@@ -20,7 +20,7 @@ WeaponTemplate weapon_templates[] = {
 
 
 //Tìm tàu theo id
-Ship* find_ship_by_id(int ship_id) {
+GameShip* find_ship_by_id(int ship_id) {
     for (int i = 0; i < num_active_ships; i++) {
         if (active_ships[i].ship_id == ship_id) {
             return &active_ships[i];
@@ -41,7 +41,7 @@ WeaponTemplate* get_weapon_template(int weapon_id) {
 }
 
 
-void update_ship_state(Ship* ship) {
+void update_ship_state(GameShip* ship) {
     if (ship->health == 0) {
         printf("[DEBUG] Tàu %d đã bị phá hủy!\n", ship->ship_id);
     }
@@ -52,8 +52,8 @@ void update_ship_state(Ship* ship) {
 void load_all_ships() {
 
     // Tàu 1
-    Ship ship1;
-    memset(&ship1, 0, sizeof(Ship));
+    GameShip ship1;
+    memset(&ship1, 0, sizeof(GameShip));
 
     ship1.ship_id   = 101;
     ship1.player_id = 1;
@@ -72,8 +72,8 @@ void load_all_ships() {
     active_ships[0] = ship1;
 
     // Tàu 2
-    Ship ship2;
-    memset(&ship2, 0, sizeof(Ship));
+    GameShip ship2;
+    memset(&ship2, 0, sizeof(GameShip));
 
     ship2.ship_id   = 102;
     ship2.player_id = 2;
