@@ -6,10 +6,18 @@
 
 #include "users.h"
 #include "hash.h"
+#include "users_io.h"
+#include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <pthread.h>
+
+/* ============================================================================
+ * MUTEX FOR THREAD SAFETY
+ * ============================================================================ */
+static pthread_mutex_t user_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /* ============================================================================
  * HASHTABLE OPERATIONS
@@ -73,7 +81,7 @@ bool rehashUserTable(UserTable *ut, size_t new_size) {
 // TODO : insertUser should also write to file?
 bool insertUser(UserTable *ut, User *user) {
     if (!ut || !user) return false;
-    
+
     // Check load factor before inserting
     double load_factor = (double)(ut->count + 1) / ut->size;
     if (load_factor > 0.75) {
@@ -94,7 +102,6 @@ bool insertUser(UserTable *ut, User *user) {
 // TODO : find co can mutex ko?
 User* findUser(UserTable *ut, const char *username) {
     if (!ut || !username) return NULL;
-    
     unsigned long idx = hashFunc(username) % ut->size;
     User *curr = ut->table[idx];
     
@@ -153,7 +160,7 @@ int updateUserCoin(UserTable *ut, const char *username, long delta) {
     
     user->coin += delta;
     user->updated_at = time(NULL);
-    
+
     return 0;
 }
 
@@ -161,7 +168,6 @@ int updateUserCoin(UserTable *ut, const char *username, long delta) {
 bool lockUser(UserTable *ut, const char *username) {
     User *user = findUser(ut, username);
     if (!user) return false;
-    
     user->status = USER_BANNED;
     user->updated_at = time(NULL);
     
@@ -172,7 +178,6 @@ bool lockUser(UserTable *ut, const char *username) {
 bool unlockUser(UserTable *ut, const char *username) {
     User *user = findUser(ut, username);
     if (!user) return false;
-    
     user->status = USER_ACTIVE;
     user->updated_at = time(NULL);
     

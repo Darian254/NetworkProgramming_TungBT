@@ -206,6 +206,7 @@ int server_handle_start_match(ServerSession *session, int opponent_team_id);
 int server_handle_get_match_result(ServerSession *session, int match_id);
 
 /**
+>>>>>>> cf8f787d1e1c2bb308b11e327c28e63ed19f2cdf
  * @brief Check if session is logged in
  * 
  * @param session Pointer to the ServerSession
@@ -241,6 +242,9 @@ SessionNode *find_session_by_username(const char *username);
  * @param socket_fd Socket file descriptor
  * @return Pointer to SessionNode if found, NULL otherwise
  */
+
+int get_fd_by_username(const char *username);
+
 SessionNode *find_session_by_socket(int socket_fd);
 
 /**

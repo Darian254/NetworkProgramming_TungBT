@@ -18,27 +18,39 @@
  * ============================================================================
  */
 
+/**
+ * ============================================================================
+ * DATABASE OPERATIONS - COMPLETE IMPLEMENTATION
+ * ============================================================================ */
+
+
 #include "db_schema.h"
 #include "hash.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 /* ============================================================================
- * IN-MEMORY STORAGE (Arrays for game tables)
- * Note: User data is handled by users.h UserTable
+ * MUTEX FOR THREAD SAFETY
  * ============================================================================ */
-static Team         teams[MAX_TEAMS];
+pthread_mutex_t team_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t ship_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+/* ============================================================================
+ * IN-MEMORY STORAGE
+ * ============================================================================ */
+Team         teams[MAX_TEAMS];
 static int          team_count = 0;
 
-static TeamMember   team_members[MAX_TEAMS * MAX_TEAM_MEMBERS];
-static int          team_member_count = 0;
+TeamMember   team_members[MAX_TEAMS * MAX_TEAM_MEMBERS];
+int          team_member_count = 0;
 
-static JoinRequest  join_requests[MAX_JOIN_REQUESTS];
-static int          join_request_count = 0;
+JoinRequest  join_requests[MAX_JOIN_REQUESTS];
+int          join_request_count = 0;
 
-static TeamInvite   team_invites[MAX_TEAM_INVITES];
-static int          team_invite_count = 0;
+TeamInvite   team_invites[MAX_TEAM_INVITES];
+int          team_invite_count = 0;
 
 static Challenge    challenges[MAX_CHALLENGES];
 static int          challenge_count = 0;
@@ -59,6 +71,7 @@ static int next_challenge_id = 1;
 static int next_match_id = 1;
 
 /* ============================================================================
+
  * LOOKUP HELPERS: Find match/team from username
  * ============================================================================ */
 
@@ -98,6 +111,7 @@ int find_running_match_by_team(int team_id) {
  * Flow: username -> team_id -> match_id
  * @return match_id or -1 if not in any running match
  */
+
 int find_current_match_by_username(const char *username) {
     int team_id = find_team_id_by_username(username);
     if (team_id <= 0) return -1;
@@ -155,43 +169,53 @@ int get_armor_value(ArmorType type) {
 /* ============================================================================
  * TEAM OPERATIONS
  * ============================================================================ */
+
 Team* find_team_by_id(int team_id) {
+    if (team_id <= 0) return NULL;
+    
+    pthread_mutex_lock(&team_mutex);
     for (int i = 0; i < team_count; i++) {
         if (teams[i].team_id == team_id && teams[i].status == TEAM_ACTIVE) {
+            pthread_mutex_unlock(&team_mutex);
             return &teams[i];
         }
     }
+    pthread_mutex_unlock(&team_mutex);
     return NULL;
 }
 
 Team* find_team_by_name(const char *name) {
     if (!name) return NULL;
-    
+    pthread_mutex_lock(&team_mutex);
     for (int i = 0; i < team_count; i++) {
-        if (teams[i].status == TEAM_ACTIVE && 
-            strcmp(teams[i].name, name) == 0) {
+        if (strcmp(teams[i].name, name) == 0 && teams[i].status == TEAM_ACTIVE) {
+            pthread_mutex_unlock(&team_mutex);
             return &teams[i];
         }
     }
+    pthread_mutex_unlock(&team_mutex);
     return NULL;
 }
 
 Team* create_team(const char *name, const char *creator_username) {
     if (!name || !creator_username) return NULL;
-    if (team_count >= MAX_TEAMS) return NULL;
     
-    // Check if team name already exists
-    if (find_team_by_name(name)) return NULL;
+    // Check capacity
+    if (team_count >= MAX_TEAMS) {
+        return NULL;
+    }
     
-    Team *team = &teams[team_count];
+    // Create team
+    Team *team = &teams[team_count++];
     team->team_id = next_team_id++;
     strncpy(team->name, name, TEAM_NAME_LEN - 1);
     team->name[TEAM_NAME_LEN - 1] = '\0';
+    strncpy(team->creator_username, creator_username, MAX_USERNAME - 1);
+    team->creator_username[MAX_USERNAME - 1] = '\0';
     team->creator_id = (int)hashFunc(creator_username);
     team->member_limit = MAX_TEAM_MEMBERS;
     team->status = TEAM_ACTIVE;
     team->created_at = time(NULL);
-    
     team_count++;
     
     // Add creator as team member
@@ -210,20 +234,29 @@ Team* create_team(const char *name, const char *creator_username) {
 }
 
 int get_team_member_count(int team_id) {
+    if (team_id <= 0) return 0;
+    
+    pthread_mutex_lock(&team_mutex);
     int count = 0;
     for (int i = 0; i < team_member_count; i++) {
         if (team_members[i].team_id == team_id) {
             count++;
         }
     }
+    pthread_mutex_unlock(&team_mutex);
+
     return count;
 }
 
 bool delete_team(int team_id) {
+    if (team_id <= 0) return false;
+
     Team *team = find_team_by_id(team_id);
     if (!team) return false;
     
     team->status = TEAM_DELETED;
+    
+    return true;
     
     // Remove all team members
     for (int i = team_member_count - 1; i >= 0; i--) {
@@ -235,12 +268,61 @@ bool delete_team(int team_id) {
         }
     }
     
+    for (int i = join_request_count - 1; i >= 0; i--) {
+        if (join_requests[i].team_id == team_id) {
+            for (int j = i; j < join_request_count - 1; j++) {
+                join_requests[j] = join_requests[j + 1];
+            }
+            join_request_count--;
+        }
+    }
+     
+    // Remove all invites for this team
+    for (int i = team_invite_count - 1; i >= 0; i--) {
+        if (team_invites[i].team_id == team_id) {
+            for (int j = i; j < team_invite_count - 1; j++) {
+                team_invites[j] = team_invites[j + 1];
+            }
+            team_invite_count--;
+        }
+    }
+    
+    pthread_mutex_unlock(&team_mutex);
     return true;
 }
 
 /* ============================================================================
- * SHIP OPERATIONS (IN-MATCH ONLY)
+ * CLEAR REQUESTS
  * ============================================================================ */
+void clear_user_requests(const char *username) {
+    if (!username) return;
+
+    int user_id = hashFunc(username);
+
+    pthread_mutex_lock(&team_mutex);
+
+    int i = 0;
+    while (i < join_request_count) {
+        if (join_requests[i].user_id == user_id) {
+            
+            for (int j = i; j < join_request_count - 1; j++) {
+                join_requests[j] = join_requests[j + 1];
+            }
+            join_request_count--;
+            
+        } else {
+            i++; 
+        }
+    }
+
+    pthread_mutex_unlock(&team_mutex);
+    printf("[INFO] Cleared join requests for user: %s\n", username);
+}
+
+/* ============================================================================
+ * SHIP OPERATIONS
+ * ============================================================================ */
+
 Ship* find_ship(int match_id, const char *username) {
     if (!username) return NULL;
     
@@ -268,7 +350,6 @@ Ship* create_ship(int match_id, const char *username) {
     ship->cannon_ammo = SHIP_DEFAULT_CANNON;
     ship->laser_count = SHIP_DEFAULT_LASER;
     ship->missile_count = SHIP_DEFAULT_MISSILE;
-    
     ship_count++;
     return ship;
 }
@@ -276,6 +357,7 @@ Ship* create_ship(int match_id, const char *username) {
 void delete_ships_by_match(int match_id) {
     for (int i = ship_count - 1; i >= 0; i--) {
         if (ships[i].match_id == match_id) {
+
             for (int j = i; j < ship_count - 1; j++) {
                 ships[j] = ships[j + 1];
             }
@@ -319,11 +401,11 @@ int ship_take_damage(Ship *s, int damage) {
     }
     
     // Apply remaining damage to HP
+
     if (remaining_damage > 0) {
         s->hp -= remaining_damage;
         if (s->hp < 0) s->hp = 0;
     }
-    
     return s->hp;
 }
 

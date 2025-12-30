@@ -17,6 +17,10 @@ CLIENT_OBJS = $(CLIENT_DIR)/client.o \
               $(SERVER_DIR)/util.o \
               $(SERVER_DIR)/config.o
 
+<<<<<<< HEAD
+# Server object files  
+SERVER_OBJS = $(SERVER_DIR)/server.o \
+=======
 # Server object files
 # TODO: This is the new modular architecture
 # - server.o: Clean epoll-based server (replaces old server.o)
@@ -40,13 +44,22 @@ SERVER_OBJS = $(SERVER_DIR)/server.o \
               $(SERVER_DIR)/epoll_loop.o \
               $(SERVER_DIR)/connect.o \
               $(SERVER_DIR)/session.o \
+>>>>>>> cf8f787d1e1c2bb308b11e327c28e63ed19f2cdf
               $(SERVER_DIR)/file_transfer.o \
               $(SERVER_DIR)/util.o \
               $(SERVER_DIR)/users.o \
               $(SERVER_DIR)/users_io.o \
+<<<<<<< HEAD
+              $(SERVER_DIR)/config.o \
+              $(SERVER_DIR)/hash.o \
+              $(SERVER_DIR)/session.o \
+              $(SERVER_DIR)/db.o \
+              $(SERVER_DIR)/team_handler.o 
+=======
               $(SERVER_DIR)/hash.o \
               $(SERVER_DIR)/config.o \
               $(SERVER_DIR)/db.o
+>>>>>>> cf8f787d1e1c2bb308b11e327c28e63ed19f2cdf
 
 .PHONY: all clean client server
 
@@ -65,7 +78,11 @@ $(CLIENT): $(CLIENT_OBJS)
 # Build server
 # ==============================
 $(SERVER): $(SERVER_OBJS)
+<<<<<<< HEAD
+	$(CC) $(CFLAGS) -pthread -o $@ $^
+=======
 	$(CC) $(CFLAGS) -o $@ $^
+>>>>>>> cf8f787d1e1c2bb308b11e327c28e63ed19f2cdf
 
 # ==============================
 # Compilation rules

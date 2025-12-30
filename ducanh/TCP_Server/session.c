@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 #include "util.h"
 #include "config.h"
 #include "hash.h"
@@ -9,8 +10,9 @@
 #include "users_io.h"
 #include "db_schema.h"  // For FILE_USERS
 
-/* Global session manager (single-threaded epoll, no locking needed) */
+/* Global session manager with mutex for thread safety */
 static SessionManager session_mgr = {NULL, 0};
+static pthread_mutex_t session_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void initServerSession(ServerSession *s) {
     if (!s) return;
@@ -52,6 +54,7 @@ int server_handle_login(ServerSession *session, UserTable *ut, const char *usern
     strncpy(session->username, user->username, MAX_USERNAME - 1);
     session->username[MAX_USERNAME - 1] = '\0';
     
+    session->current_team_id = find_team_id_by_username(session->username);
     /* Update session in manager */
     if (!update_session_by_socket(session->socket_fd, session)) {
         /* If update failed, try to add new session */
@@ -332,6 +335,34 @@ void cleanup_session_manager(void) {
     session_mgr.count = 0;
 }
 
+SessionNode *find_session_by_username(const char *username) {
+    if (!username) return NULL;
+    
+    pthread_mutex_lock(&session_mutex);
+    SessionNode *current = session_mgr.head;
+    SessionNode *result = NULL;
+    while (current != NULL) {
+        if (current->session.isLoggedIn && 
+            strcmp(current->session.username, username) == 0) {
+            result = current;
+            break;
+        }
+        current = current->next;
+    }
+    pthread_mutex_unlock(&session_mutex);
+    return result;
+}
+
+int get_fd_by_username(const char *username) {
+    SessionNode *node = find_session_by_username(username);
+
+    if (node != NULL) {
+        return node->session.socket_fd;
+    }
+    
+    return -1;
+}
+
 
 SessionNode *find_session_by_socket(int socket_fd) {
     SessionNode *current = session_mgr.head;
@@ -368,7 +399,6 @@ bool add_session(ServerSession *session) {
     new_node->next = session_mgr.head;
     session_mgr.head = new_node;
     session_mgr.count++;
-    
     return true;
 }
 
@@ -390,7 +420,6 @@ bool remove_session_by_socket(int socket_fd) {
         prev = current;
         current = current->next;
     }
-    
     return false;
 }
 
