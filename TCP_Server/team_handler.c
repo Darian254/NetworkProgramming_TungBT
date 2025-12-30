@@ -10,16 +10,13 @@
 #include "config.h"
 #include "file_transfer.h"
 #include "hash.h"
-#include <pthread.h>
 #include <string.h>
 #include <stdio.h>
 
 extern Team teams[MAX_TEAMS]; 
 extern TeamMember team_members[MAX_TEAM_MEMBERS * MAX_TEAMS];
 extern UserTable *g_user_table;
-extern pthread_mutex_t team_mutex;
 extern int team_member_count;
-extern pthread_mutex_t g_user_table_mutex;
 extern JoinRequest join_requests[MAX_JOIN_REQUESTS];
 extern int join_request_count;
 extern TeamInvite team_invites[MAX_TEAM_INVITES];
@@ -58,7 +55,8 @@ int handle_create_team(ServerSession *session, UserTable *ut, const char *name) 
     
     session->current_team_id = new_team->team_id;
     update_session_by_socket(session->socket_fd, session);
-    
+    printf("[INFO] User '%s' created team '%s' (ID: %d)\n", 
+           session->username, new_team->name, new_team->team_id);
     return RESP_TEAM_CREATED;
 }
 
@@ -221,7 +219,6 @@ int handle_leave_team(ServerSession *session) {
     }
     
     
-    pthread_mutex_lock(&team_mutex);
     
     bool is_creator = (strcmp(team->creator_username, session->username) == 0);
     int remove_index = -1;
@@ -291,7 +288,6 @@ int handle_kick_member(ServerSession *session, const char *username) {
         return RESP_SYNTAX_ERROR;
     }
     
-    pthread_mutex_lock(&team_mutex);
     
     int index = -1;
     for (int i = 0; i < team_member_count; i++) {
@@ -346,8 +342,6 @@ int handle_join_request(ServerSession *session, const char *name) {
         return RESP_TEAM_FULL;
     }
     int user_id = hashFunc(session->username);
-
-    pthread_mutex_lock(&team_mutex);
 
     for (int i = 0; i < join_request_count; i++) {
         if (join_requests[i].team_id == team->team_id &&
@@ -461,8 +455,6 @@ int handle_join_reject(ServerSession *session, const char *target_username) {
     }
     
     int target_user_id = hashFunc(target_username);
-
-    pthread_mutex_lock(&team_mutex);
     
     int req_index = -1;
     for (int i = 0; i < join_request_count; i++) {

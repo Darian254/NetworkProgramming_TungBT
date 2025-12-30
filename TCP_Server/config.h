@@ -43,9 +43,10 @@ typedef enum {
     FUNC_REJECT_INVITE = 19,    /**< Reject invitation */
     FUNC_START_MATCH = 20,       /**< Start a match */
     FUNC_GET_MATCH_RESULT = 21 ,/**< Check match result */
+    FUNC_END_MATCH = 22,        /**< End current match */
 
     // TODO: Repair HP - fix later
-    FUNC_REPAIR = 22       /**< Repair HP */
+    FUNC_REPAIR = 23       /**< Repair HP */
 
 } FunctionId;
 
@@ -76,6 +77,7 @@ typedef enum {
     RESP_COIN_OK = 202,           /**< Get coin successful */
     RESP_ARMOR_INFO_OK = 203,     /**< Get armor info successful */
     RESP_BUY_ITEM_OK = 334,       /**< Buy item successful */
+    RESP_END_MATCH_OK = 140,        /**< Match ended successfully */
     
     RESP_REPAIR_OK = 132,         /**< Repair successful */
 

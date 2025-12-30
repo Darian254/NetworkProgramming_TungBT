@@ -496,7 +496,7 @@ int main(int argc, char *argv[]) {
                 }
                 break;
             }
-
+            
             default: {
                 printf("Invalid choice, please try again.\n");
                 break;

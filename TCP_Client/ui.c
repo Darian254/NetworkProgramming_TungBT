@@ -31,8 +31,11 @@ void displayMenu() {
     printf("17. Invite Member (Captain only)\n");
     printf("18. Accept Invite\n");
     printf("19. Reject Invite\n");
+    printf("20. Start Match\n");
+    printf("21. Get Match Result\n");
+    printf("22. End Match\n");
     // TODO: Repair HP - fix later
-    printf("22. Repair HP\n");
+    printf("23. Repair HP\n");
     printf("==================================\n");
     printf("Select an option: ");
 }
