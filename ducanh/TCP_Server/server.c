@@ -10,6 +10,7 @@
 #include "epoll.h"
 #include "config.h"
 #include "app_context.h"
+#include <signal.h>
 #include "session.h"
 #include "users.h"
 #include "team_handler.h" // Để xử lý team
@@ -36,6 +37,12 @@
 #include <time.h> 
 
 static int listen_sock = -1;
+
+static void handle_signal(int sig) {
+    (void)sig;
+    // Request epoll loop to stop; cleanup happens after server_run returns
+    epoll_request_stop();
+}
 
 /* * 2. HÀM XỬ LÝ LOGIC (LẤY TỪ LOCAL)
  * Lưu ý: Đã bỏ 'static' và bỏ 'mutex' vì Epoll chạy đơn luồng an toàn
@@ -283,6 +290,12 @@ void server_shutdown(void) {
 }
 
 int main(int argc, char *argv[]) {
+    (void)argc; // PORT is from config.h, not command line
+    (void)argv;
+
+    // Register signal handlers for graceful shutdown
+    signal(SIGINT, handle_signal);
+    signal(SIGTERM, handle_signal);
     (void)argc; (void)argv;
 
     if (server_init() != 0) {

@@ -127,8 +127,8 @@ typedef enum {
     RESP_INTERNAL_ERROR = 500,    /**< Internal server error */
     RESP_DATABASE_ERROR = 501,    /**< Database error */
     RESP_SERVER_BUSY = 503,       /**< Server too busy */
-    RESP_NOT_IN_MATCH = 503,      /**< Not in a match */
-    RESP_MATCH_STATE_ERROR = 504, /**< Match state does not allow action */
+    RESP_NOT_IN_MATCH = 504,      /**< Not in a match */
+    RESP_MATCH_STATE_ERROR = 505, /**< Match state does not allow action */
     
     /* Shop/Item error codes */
     RESP_ARMOR_NOT_FOUND = 520,   /**< Armor type does not exist */
@@ -235,6 +235,7 @@ static const ResponseMessage RESPONSE_MESSAGES[] = {
     {RESP_ARMOR_SLOT_FULL,   "Armor slots full (max 2)."},
 
     {RESP_ALREADY_FULL_HP,   "Your ship's HP is already full."}
+    {RESP_BUY_ITEM_FAILED,   "Item purchase failed."}
 };
 
 #define RESPONSE_MESSAGES_COUNT (sizeof(RESPONSE_MESSAGES) / sizeof(RESPONSE_MESSAGES[0]))

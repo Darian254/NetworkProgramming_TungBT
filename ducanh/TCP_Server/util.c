@@ -3,7 +3,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stddef.h> 
+#include <stddef.h>
+#include <stdarg.h>
+#include <time.h>
+#include <ctype.h>
 
 /* Convert response code to message (used by both server and client) */
 void beautify_result(const char *raw, char *outbuf, size_t buflen) {
@@ -42,3 +45,39 @@ void safeInput(char *buffer, size_t size) {
     }
 }
 
+
+static const char *file_path = "server_activity.log";
+
+static const char *level_for_code(ResponseCode code) {
+    if ((int)code >= 500) return "[ERROR]";
+    if ((int)code >= 300) return "[WARN]";
+    return "[INFO]";
+}
+
+void log_activity(const char *action,
+                  const char *username,
+                  bool is_logged_in,
+                  const char *user_input,
+                  ResponseCode code) {
+    FILE *fp = fopen(file_path, "a");
+    if (!fp) return;
+
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+    char ts[32] = "";
+    if (tm_info) {
+        strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", tm_info);
+    }
+
+    const char *lvl = level_for_code(code);
+    const char *msg = get_response_message(code);
+    if (!msg) msg = "UNKNOWN";
+
+    const char *user_field = (is_logged_in && username && username[0] != '\0') ? username : "-";
+    const char *action_field = action && action[0] ? action : "-";
+
+    /* Format: 2025-12-24 12:34:56 [info] action=LOGIN user=alice input="..." code=110 message="..." */
+    fprintf(fp, "%s %s action=%s user=%s input=\"%s\" code=%d message=\"%s\"\n",
+            ts, lvl, action_field, user_field, user_input, (int)code, msg);
+    fclose(fp);
+}

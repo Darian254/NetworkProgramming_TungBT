@@ -227,6 +227,40 @@ int server_handle_repair(ServerSession *session, UserTable *ut, int repair_amoun
     return RESP_REPAIR_OK;
 }
 
+int server_handle_buy_weapon(ServerSession *session, UserTable *ut, int weapon_type) {
+    if (!session || !ut) {
+        return RESP_SYNTAX_ERROR;
+    }
+    
+    if (!session->isLoggedIn) {
+        return RESP_NOT_LOGGED;
+    }
+    
+    int match_id = session->current_match_id;
+    if (match_id <= 0) {
+        /* Fallback */
+        match_id = find_current_match_by_username(session->username);
+        if (match_id > 0) {
+            session->current_match_id = match_id; 
+        }
+    }
+    
+    if (match_id <= 0) {
+        return RESP_NOT_IN_MATCH;
+    }
+    
+    if (weapon_type < WEAPON_CANNON || weapon_type > WEAPON_MISSILE) {
+        return RESP_INTERNAL_ERROR;
+    }
+    
+    Ship *ship = find_ship(match_id, session->username);
+    if (!ship) {
+        return RESP_INTERNAL_ERROR; 
+    }
+         
+    return ship_buy_weapon(ut, ship, session->username, weapon_type);
+}
+
 int server_handle_start_match(ServerSession *session, int opponent_team_id) {
     // 1. Validate input
     if (!session) {

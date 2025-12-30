@@ -183,6 +183,23 @@ int server_handle_buyarmor(ServerSession *session, UserTable *ut, int armor_type
 int server_handle_repair(ServerSession *session, UserTable *ut, int repair_amount, RepairResult *out);
 
 /**
+ * @brief Handle BUYWEAPON command for TCP server
+ * Purchases weapon ammo for the player's ship in current match
+ * 
+ * @param session Pointer to the ServerSession
+ * @param ut Pointer to the UserTable (for coin deduction)
+ * @param weapon_type Weapon type to purchase (0=cannon, 1=laser, 2=missile)
+ * @return Response code:
+ *   - RESP_BUY_ITEM_OK (334): Success
+ *   - RESP_NOT_LOGGED (221): Not logged in
+ *   - RESP_NOT_IN_MATCH (223): Not in any running match
+ *   - RESP_INTERNAL_ERROR (500): Ship not found or other error
+ *   - RESP_NOT_ENOUGH_COIN (521): Insufficient coins
+ *   - RESP_BUY_ITEM_FAILED (523): Purchase failed (e.g. maxed out)
+ */
+int server_handle_buy_weapon(ServerSession *session, UserTable *ut, int weapon_type);
+
+/**
  * @brief Handle START_MATCH command - creates custom match with specified opponent
  * Both teams should coordinate beforehand (via chat/external means) to exchange team IDs
  *
