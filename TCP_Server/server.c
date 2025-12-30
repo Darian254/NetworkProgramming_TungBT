@@ -305,9 +305,6 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    load_all_ships(); 
-    printf("[INFO] Game Data Loaded (Ships & Weapons).\n");
-
     server_run();
     server_shutdown();
 

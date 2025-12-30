@@ -2,10 +2,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <pthread.h>
 #include "util.h"
 #include "config.h"
 #include "hash.h"
+#include <unistd.h>
 #include "users.h"
 #include "users_io.h"
 #include "db_schema.h"  // For FILE_USERS and function declarations
@@ -14,6 +16,10 @@
 static SessionManager session_mgr = {NULL, 0};
 static pthread_mutex_t session_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+//từ db.c
+extern TreasureChest active_chests[];
+extern ChestPuzzle puzzles[];
+extern WeaponTemplate weapon_templates[];
 void initServerSession(ServerSession *s) {
     if (!s) return;
     s->isLoggedIn = false;
@@ -371,102 +377,136 @@ int server_handle_get_match_result(ServerSession *session, int match_id) {
 }
 
 
-void process_fire_request(int attacker_id, int target_id, int weapon_id) {
-    GameShip* target = find_ship_by_id(target_id);
-    GameShip* attacker = find_ship_by_id(attacker_id);
-    int result_code = 0;
+int server_handle_fire(ServerSession *session,
+                       int target_id,
+                       int weapon_type,
+                       FireResult *result)
+{
+    if (!session || !session->isLoggedIn)
+        return RESP_NOT_LOGGED;
 
-    // Kiểm tra tính hợp lệ của mục tiêu và đồng đội
-    if (!target || !attacker || target->team_id == attacker->team_id) {
-        send_error_response(attacker->socket_fd, ERROR_INVALID_TARGET, "Invalid target ID or friendly fire.");
-        return; 
+    if (session->current_match_id <= 0)
+        return RESP_NOT_IN_MATCH;
+
+    Ship *attacker = find_ship(
+        session->current_match_id,
+        session->username
+    );
+
+    Ship *target = find_ship_by_id(target_id);
+
+    if (!attacker || !target ) {
+        return RESP_INVALID_TARGET;
+    }
+    //Lấy team của người bắn từ session
+    int attacker_team_id = session->current_team_id;
+    //Lấy team của mục tiêu thông qua player_id
+    int target_team_id = get_team_id_by_player_id(target->player_id);
+    //Kiểm tra bắn đồng đội
+    if (attacker_team_id == target_team_id) {
+        return RESP_INVALID_TARGET; // Không bắn phe mình
     }
 
-    result_code = calculate_and_update_damage(attacker, target, weapon_id);
+    int rc = calculate_and_update_damage(attacker, target, weapon_type, result);
 
-    // Xử lý báo lỗi nếu có
-    if (result_code != 0) {
-        char* error_msg = "Fire Failed";
-        if (result_code == ERROR_OUT_OF_AMMO) error_msg = "Out of Ammo";
-        else if (result_code == ERROR_WEAPON_NOT_EQUIPPED) error_msg = "Weapon Not Equipped (You dont have this ID)";
-        else if (result_code == ERROR_TARGET_DESTROYED) error_msg = "Target Already Destroyed";
-        
-        send_error_response(attacker->socket_fd, result_code, error_msg);
+    if (rc != 0) {
+        const char *msg = "Fire Failed";
+        if (rc == RESP_OUT_OF_AMMO) msg = "Out of Ammo";
+        else if (rc == RESP_WEAPON_NOT_EQUIPPED) msg = "Weapon Not Equipped";
+        else if (rc == RESP_TARGET_DESTROYED) msg = "Target Already Destroyed";
+
+        send_error_response(session->socket_fd, rc, msg);
+        return rc;
     }
+
+    return RESP_FIRE_OK;
 }
+
+
 
 // Tính toán sát thương và trừ đạn
-int calculate_and_update_damage(GameShip* attacker, GameShip* target, int weapon_id) {
+int calculate_and_update_damage(Ship* attacker, Ship* target, int weapon_type, FireResult *out) {
     
-    // TÌM VŨ KHÍ THEO ID
-    int index = -1;
-    for (int i = 0; i < MAX_WEAPONS; i++) {
-        // Tìm thấy ID vũ khí trùng khớp trong các slot
-        if (attacker->weapons[i].weapon_id == weapon_id) {
-            index = i;
-            break; 
-        }
-    }
+    int damage = 0;
 
-    // Nếu không tìm thấy vũ khí ID này trên tàu
-    if (index == -1) {
-        return ERROR_WEAPON_NOT_EQUIPPED; 
-    }
-    
-    EquippedWeapon* eq_weapon = &attacker->weapons[index];
-
-    // KIỂM TRA ĐẠN 
-    if (eq_weapon->current_ammo <= 0) {
-        return ERROR_OUT_OF_AMMO; 
-    }
-
-    // LẤY THÔNG SỐ SÁT THƯƠNG
-    WeaponTemplate* template = get_weapon_template(eq_weapon->weapon_id);
-    if (!template) return 500; // Lỗi hệ thống 
-
-    int base_damage = template->damage;
-    
-    // TÍNH TOÁN
-    eq_weapon->current_ammo--; // Trừ 1 viên đạn
-    
-    int damage_to_deal = base_damage;
-    int total_damage_dealt = 0;
-    int hp_loss = 0;
-    
-    // Armor Logic
-    if (target->armor > 0) {
-        if (damage_to_deal <= target->armor) {
-            target->armor -= damage_to_deal; 
-            total_damage_dealt = damage_to_deal;
-        } else {
-            int damage_spillover = damage_to_deal - target->armor;
-            target->armor = 0; // Giáp vỡ
+    // Check vũ khí//dam,name,..
+    switch (weapon_type) {
+        case WEAPON_CANNON: // 0
+            // Kiểm tra biến cannon_ammo trong struct Ship
+            if (attacker->cannon_ammo <= 0) return RESP_OUT_OF_AMMO;
             
-            hp_loss = damage_spillover;
-            target->health -= hp_loss; // Trừ vào máu phần dư
-            total_damage_dealt = damage_to_deal;
+            attacker->cannon_ammo--;       // Trừ đạn trực tiếp
+            damage = CANNON_DAMAGE;        // Lấy damage = 10 từ config
+            break;
+
+        case WEAPON_LASER: // 1
+            // Kiểm tra biến laser_count
+            if (attacker->laser_count <= 0) return RESP_OUT_OF_AMMO;
+            
+            attacker->laser_count--;       // Trừ số lần bắn
+            damage = LASER_DAMAGE;         // Lấy damage = 100
+            break;
+
+        case WEAPON_MISSILE: // 2
+            // Kiểm tra biến missile_count
+            if (attacker->missile_count <= 0) return RESP_OUT_OF_AMMO;
+            
+            attacker->missile_count--;     // Trừ tên lửa
+            damage = MISSILE_DAMAGE;       // Lấy damage = 800
+            break;
+
+        default:
+            return RESP_WEAPON_NOT_EQUIPPED;
+    }
+
+    // Trừ giáp và máu
+    int damage_remaining = damage;
+    int total_damage_dealt = damage; 
+
+    // Kiểm tra giáp
+    if (target->armor_slot_2_value > 0) {
+        // Check giáp 1
+        if (target->armor_slot_2_value >= damage_remaining) {
+            // Giáp chịu hết sát thương
+            target->armor_slot_2_value -= damage_remaining;
+            damage_remaining = 0;
+        } else {
+            // Giáp vỡ, sát thương dư trừ vào HP
+            damage_remaining -= target->armor_slot_2_value;
+            target->armor_slot_2_value = 0;
+            target->armor_slot_2_type = ARMOR_NONE; // Hủy giáp
         }
-    } else {
-        hp_loss = damage_to_deal;
-        target->health -= hp_loss;
-        total_damage_dealt = damage_to_deal;
+    } 
+    else if (target->armor_slot_1_value > 0) {
+        // Không có giáp 2, check giáp 1
+        if (target->armor_slot_1_value >= damage_remaining) {
+            // Giáp chịu hết sát thương
+            target->armor_slot_1_value -= damage_remaining;
+            damage_remaining = 0;
+        } else {
+            // Giáp vỡ, sát thương dư trừ vào HP
+            damage_remaining -= target->armor_slot_1_value;
+            target->armor_slot_1_value = 0;
+            target->armor_slot_1_type = ARMOR_NONE; // Hủy giáp
+        }
+    }
+  
+    // Không có giáp
+    if (damage_remaining > 0) {
+        target->hp -= damage_remaining;
+        if (target->hp < 0) target->hp = 0;
+    }
+    //Ghi kết quả
+    if (out) {
+        out->attacker_id = attacker->player_id;
+        out->target_id = target->player_id;
+        out->damage_dealt = total_damage_dealt;
+        out->target_remaining_hp = target->hp;
+        out->target_remaining_armor = target->armor_slot_1_value + target->armor_slot_2_value;
     }
 
-    if (target->health < 0) {
-        target->health = 0;
-    }
-
-    // UPDATE
-    update_ship_state(attacker); // Lưu số đạn mới
-    update_ship_state(target);   // Lưu HP/Armor mới
-
-   
-    send_fire_ok(attacker->socket_fd, target->ship_id, total_damage_dealt, target->health, target->armor);
-    broadcast_fire_event(attacker->ship_id, target->ship_id, total_damage_dealt, target->health, target->armor);
-    
-    return 0; 
+    return 0; // Thành công
 }
-
 int server_handle_send_challenge(ServerSession *session, int target_team_id, int *new_challenge_id) {
     if (!session || !session->isLoggedIn) return 315; // RESP_NOT_LOGGED
 
@@ -616,6 +656,7 @@ int server_handle_open_chest(ServerSession *session, int chest_id, const char *a
 
 
 }
+  
 /* ====== Session Manager Implementation ====== */
 
 void init_session_manager(void) {
@@ -634,7 +675,41 @@ void cleanup_session_manager(void) {
     session_mgr.head = NULL;
     session_mgr.count = 0;
 }
+ 
+// Hàm gửi phản hồi lỗi nhanh qua socket
+void send_error_response(int socket_fd, int error_code, const char *details) {
+    char buffer[512];
+    // Tạo chuỗi phản hồi: "Mã_Lỗi Thông_Điệp\r\n"
+    snprintf(buffer, sizeof(buffer), "%d %s\r\n", error_code, details ? details : "UNKNOWN_ERROR");
+    
+    if (socket_fd > 0) {
+        (void)write(socket_fd, buffer, strlen(buffer));
+    }
+}
+void broadcast_fire_event(int attacker_id, int target_id, int damage_dealt, int target_remaining_hp, int target_remaining_armor) {
+    //Tìm trận đấu (match_id) dựa vào người bắn
+    Ship *attacker_ship = find_ship_by_id(attacker_id);
+    if (!attacker_ship) return;
+    
+    int match_id = attacker_ship->match_id;
 
+    //Tạo bản tin thông báo (Protocol 131)
+    char msg[512];
+    snprintf(msg, sizeof(msg), "131 FIRE_EVENT %d %d %d %d %d\r\n", 
+             attacker_id, target_id, damage_dealt, target_remaining_hp, target_remaining_armor);
+
+    // Duyệt danh sách session và gửi cho những người CÙNG TRẬN ĐẤU
+    pthread_mutex_lock(&session_mutex);
+    SessionNode *current = session_mgr.head;
+    while (current != NULL) {
+        // Chỉ gửi nếu đã login và đang ở trong cùng match_id
+        if (current->session.isLoggedIn && current->session.current_match_id == match_id) {
+            (void)write(current->session.socket_fd, msg, strlen(msg));
+        }
+        current = current->next;
+    }
+    pthread_mutex_unlock(&session_mutex);
+}
 SessionNode *find_session_by_username(const char *username) {
     if (!username) return NULL;
     

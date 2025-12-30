@@ -43,7 +43,9 @@ typedef enum {
     FUNC_REJECT_INVITE = 19,    /**< Reject invitation */
     FUNC_START_MATCH = 20,       /**< Start a match */
     FUNC_GET_MATCH_RESULT = 21 ,/**< Check match result */
-
+    FUNC_FIRE = 23,          /**< Bắn tàu khác */
+    FUNC_CHALLENGE = 24,     /**< Gửi lời thách đấu */
+    FUNC_OPEN_CHEST = 25,     /**< Mở rương */
     // TODO: Repair HP - fix later
     FUNC_REPAIR = 22       /**< Repair HP */
 
@@ -142,7 +144,8 @@ typedef enum {
     RESP_INVALID_TARGET = 343,       /**< Invalid target */
     RESP_TARGET_DESTROYED = 344,     /**< Target destroyed */
     RESP_NOT_YOUR_TURN = 335,        /**< Not your turn */
-    RESP_CHEST_DROP_OK = 140,     
+    RESP_CHEST_DROP_OK = 140,  
+    RESP_FIRE_OK =     131,
     
     /* Error codes - Chest (Dự phòng cho logic mở rương) */
     RESP_CHEST_NOT_FOUND = 440,    /**< Chest ID invalid */

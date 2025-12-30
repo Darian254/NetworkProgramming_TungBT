@@ -11,7 +11,10 @@
 #include "../TCP_Server/file_transfer.h"
 #include "../TCP_Server/util.h"
 
-
+//thêm vào
+#ifdef BUFF_SIZE
+#undef BUFF_SIZE
+#endif  
 #define BUFF_SIZE 8192 // Tăng kích thước buffer để nhận danh sách dài
 
 
@@ -371,6 +374,104 @@ int main(int argc, char *argv[]) {
                         beautify_result(recvbuf, pretty, sizeof(pretty));
                         printf("%s", pretty);
                     }
+                }
+                break;
+            }
+
+            case FUNC_FIRE: { /* Bắn tàu khác */
+                char target_id[32];
+                char weapon_id[16] = "1"; // Mặc định súng 1 (Cannon)
+
+                printf("Enter Target ID (User/Ship ID): ");
+                fflush(stdout);
+                safeInput(target_id, sizeof(target_id));
+
+                if (strlen(target_id) == 0) {
+                    printf("Target ID cannot be empty.\n");
+                    break;
+                }
+                
+                // (Tùy chọn) Nhập loại súng nếu game có nhiều súng
+                // printf("Enter Weapon ID (default 1): "); 
+                // safeInput(weapon_id, sizeof(weapon_id));
+
+                snprintf(cmd, sizeof(cmd), "FIRE %s %s", target_id, weapon_id);
+                
+                // 1. Gửi lệnh
+                if (send_line(sock, cmd) < 0) {
+                    perror("send() error");
+                    break;
+                }
+
+                // 2. Chờ phản hồi NGAY LẬP TỨC
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    // Xử lý kết quả bắn: Server trả về "200 ..." hoặc thông báo lỗi
+                    int atk, tar, dam, hp, arm;
+                    // Giả sử server trả về: "200 AtkID TarID Dam HP Armor" khi bắn trúng
+                    if (sscanf(recvbuf, "200 %d %d %d %d %d", &atk, &tar, &dam, &hp, &arm) == 5) {
+                         printf("\n>>> [HIT] You hit Target %d! Damage: %d | Enemy HP: %d\n", tar, dam, hp);
+                    } else {
+                        // Nếu bắn trượt hoặc lỗi, dùng beautify
+                        char pretty[1024];
+                        beautify_result(recvbuf, pretty, sizeof(pretty));
+                        printf("%s", pretty);
+                    }
+                }
+                break;
+            }
+
+            case FUNC_CHALLENGE: { /* Gửi lời thách đấu */
+                char team_id_str[32];
+                printf("Enter Team ID to challenge: ");
+                fflush(stdout);
+                safeInput(team_id_str, sizeof(team_id_str));
+
+                if (strlen(team_id_str) == 0) break;
+
+                snprintf(cmd, sizeof(cmd), "START_MATCH %s", team_id_str);
+
+                if (send_line(sock, cmd) < 0) {
+                    perror("send() error");
+                    break;
+                }
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+                    printf("%s", pretty);
+                }
+                break;
+            }
+
+            case FUNC_OPEN_CHEST: { /* Mở rương trả lời câu hỏi */
+                char chest_id[16];
+                char answer[128];
+
+                printf("Enter Chest ID: ");
+                fflush(stdout);
+                safeInput(chest_id, sizeof(chest_id));
+                if (strlen(chest_id) == 0) break;
+
+                printf("Enter Answer: ");
+                fflush(stdout);
+                safeInput(answer, sizeof(answer));
+                if (strlen(answer) == 0) {
+                     printf("Answer cannot be empty.\n");
+                     break;
+                }
+
+                // Gửi lệnh: CHEST_OPEN [ID] [ANSWER]
+                snprintf(cmd, sizeof(cmd), "CHEST_OPEN %s %s", chest_id, answer);
+
+                if (send_line(sock, cmd) < 0) {
+                    perror("send() error");
+                    break;
+                }
+
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    // Server có thể trả về: "127 Correct! +100 coin" hoặc "Error"
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+                    printf("%s", pretty);
                 }
                 break;
             }

@@ -33,6 +33,13 @@ void displayMenu() {
     printf("19. Reject Invite\n");
     // TODO: Repair HP - fix later
     printf("22. Repair HP\n");
+    printf("----------------------------------\n");
+    
+    printf(" [GAME ACTIONS]\n");
+    printf("30. Fire (Attack)\n");
+    printf("31. Challenge Team\n");
+    printf("32. Open Chest\n");
+    printf("33. Check Match Result\n");
     printf("==================================\n");
     printf("Select an option: ");
 }
