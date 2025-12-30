@@ -110,6 +110,7 @@ typedef enum {
 typedef struct {
     int         team_id;                        // PK, auto-increment
     char        name[TEAM_NAME_LEN];
+    char        creator_username[MAX_USERNAME];                    
     int         creator_id;                     // FK -> USERS.user_id
     int         member_limit;                   // Default 3
     TeamStatus  status;                         // active | deleted
@@ -284,7 +285,7 @@ bool delete_team(int team_id);
 int find_team_id_by_username(const char *username);
 int find_running_match_by_team(int team_id);
 int find_current_match_by_username(const char *username);
-
+int find_available_opponent_team(int user_team_id);
 /* Match operations */
 Match* find_match_by_id(int match_id);
 Match* create_match(int team1_id, int team2_id);
