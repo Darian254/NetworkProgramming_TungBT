@@ -42,6 +42,9 @@
 
 #define TEAM_NAME_LEN       32
 
+#define MAP_WIDTH  1000
+#define MAP_HEIGHT 1000
+
 /* ============================================================================
  * ENUMS
  * ============================================================================ */
@@ -93,6 +96,31 @@ typedef enum {
     ITEM_WEAPON = 0,
     ITEM_ARMOR = 1
 } ItemType;
+
+
+typedef enum {
+    CHALLENGE_PENDING,
+    CHALLENGE_ACCEPTED,
+    CHALLENGE_DECLINED,
+    CHALLENGE_CANCELED
+} ChallengeStatus;
+
+
+typedef enum {
+    CHEST_BRONZE = 0, // 100 coin
+    CHEST_SILVER = 1, // 500 coin
+    CHEST_GOLD = 2    // 2000 coin 
+} ChestType;
+
+typedef struct {
+    int chest_id;
+    int match_id;
+    ChestType type;
+    int position_x;   
+    int position_y;
+    bool is_collected;
+    time_t spawn_time;
+} TreasureChest;
 
 /* ============================================================================
  * TABLE: USERS

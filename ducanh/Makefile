@@ -1,6 +1,7 @@
 # Compiler and flags
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c11 -O2
+# Thêm -pthread vào CFLAGS để đảm bảo cả lúc compile và link đều có
+CFLAGS = -Wall -Wextra -std=c11 -O2 -pthread
 
 # Directories
 CLIENT_DIR = TCP_Client
@@ -17,26 +18,7 @@ CLIENT_OBJS = $(CLIENT_DIR)/client.o \
               $(SERVER_DIR)/util.o \
               $(SERVER_DIR)/config.o
 
-<<<<<<< HEAD
-# Server object files  
-SERVER_OBJS = $(SERVER_DIR)/server.o \
-=======
-# Server object files
-# TODO: This is the new modular architecture
-# - server.o: Clean epoll-based server (replaces old server.o)
-# - app_context.o: Global state management (user table, sessions)
-# - router.o: Command routing layer
-# - command.o: Command parsing
-# - epoll_loop.o: Event loop from phu
-# - connect.o: Connection management from phu
-# - session.o: Business logic handlers (LOGIN, REGISTER, etc.) - UNCHANGED
-# - users.o/users_io.o/hash.o: User management - UNCHANGED
-# - db.o: Game logic (teams, matches, ships) - UNCHANGED
-# - file_transfer.o/util.o/config.o: Utilities - UNCHANGED
-#
-# To use new architecture:
-#   1. Change server_new.o to server.o below
-#   2. Or keep both and compile: make server_new vs make server_old
+# Server object files - Cleaned and merged for New Architecture
 SERVER_OBJS = $(SERVER_DIR)/server.o \
               $(SERVER_DIR)/app_context.o \
               $(SERVER_DIR)/router.o \
@@ -44,22 +26,20 @@ SERVER_OBJS = $(SERVER_DIR)/server.o \
               $(SERVER_DIR)/epoll_loop.o \
               $(SERVER_DIR)/connect.o \
               $(SERVER_DIR)/session.o \
->>>>>>> cf8f787d1e1c2bb308b11e327c28e63ed19f2cdf
               $(SERVER_DIR)/file_transfer.o \
               $(SERVER_DIR)/util.o \
               $(SERVER_DIR)/users.o \
               $(SERVER_DIR)/users_io.o \
-<<<<<<< HEAD
-              $(SERVER_DIR)/config.o \
               $(SERVER_DIR)/hash.o \
-              $(SERVER_DIR)/session.o \
+              $(SERVER_DIR)/config.o \
               $(SERVER_DIR)/db.o \
-              $(SERVER_DIR)/team_handler.o 
-=======
-              $(SERVER_DIR)/hash.o \
-              $(SERVER_DIR)/config.o \
-              $(SERVER_DIR)/db.o
->>>>>>> cf8f787d1e1c2bb308b11e327c28e63ed19f2cdf
+              $(SERVER_DIR)/game_logic.o \
+              $(SERVER_DIR)/chest_logic.o \
+              $(SERVER_DIR)/challenge_logic.o \
+              $(SERVER_DIR)/dc.o \
+              $(SERVER_DIR)/ship_defs.o \
+              $(SERVER_DIR)/networking.o \
+              $(SERVER_DIR)/team_handler.o
 
 .PHONY: all clean client server
 
@@ -78,11 +58,7 @@ $(CLIENT): $(CLIENT_OBJS)
 # Build server
 # ==============================
 $(SERVER): $(SERVER_OBJS)
-<<<<<<< HEAD
-	$(CC) $(CFLAGS) -pthread -o $@ $^
-=======
 	$(CC) $(CFLAGS) -o $@ $^
->>>>>>> cf8f787d1e1c2bb308b11e327c28e63ed19f2cdf
 
 # ==============================
 # Compilation rules
