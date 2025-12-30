@@ -30,8 +30,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <pthread.h>
-#define MAX_WEAPONS 4
-#define MAX_ARMOR_SLOTS 2
+
 /* ============================================================================
  * MUTEXES
  * ============================================================================ */
@@ -66,8 +65,9 @@ int num_active_ships = 0;
 // TODO: UserTable from users.h/c
 UserTable *g_user_table = NULL;
 
-static TreasureChest active_chests[MAX_TEAMS]; 
-static ChestPuzzle puzzles[] = {
+TreasureChest active_chests[MAX_TEAMS]; 
+
+ChestPuzzle puzzles[] = {
     {"1 + 1 = ?", "2"},             // Đồng
     {"Thủ đô của Việt Nam?", "Ha Noi"}, // Bạc
     {"Giao thức tầng giao vận nào tin cậy?", "TCP"} // Vàng
@@ -206,8 +206,8 @@ WeaponTemplate* get_weapon_template(int weapon_id) {
 
 
 void update_ship_state(Ship* ship) {
-    if (ship->health == 0) {
-        printf("[DEBUG] Tàu %d đã bị phá hủy!\n", ship->ship_id);
+    if (ship->hp == 0) {
+        printf("[DEBUG] Tàu %d đã bị phá hủy!\n", ship->player_id);
     }
 }
 
@@ -381,6 +381,7 @@ Ship* create_ship(int match_id, const char *username) {
     ship->armor_slot_1_value = 0;
     ship->armor_slot_2_type = ARMOR_NONE;
     ship->armor_slot_2_value = 0;
+    //TODO
     ship->cannon_ammo = SHIP_DEFAULT_CANNON;
     ship->laser_count = SHIP_DEFAULT_LASER;
     ship->missile_count = SHIP_DEFAULT_MISSILE;

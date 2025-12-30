@@ -45,6 +45,10 @@
 #define MAP_WIDTH  1000
 #define MAP_HEIGHT 1000
 
+
+#define MAX_WEAPONS 4
+#define MAX_ARMOR_SLOTS 2
+
 /* ============================================================================
  * ENUMS
  * ============================================================================ */
@@ -259,6 +263,11 @@ typedef struct {
     // int         missile_count;                  // Missile count
     EquippedWeapon weapons[MAX_WEAPONS];
 } Ship;
+
+typedef struct {
+    char question[256];
+    char answer[64];
+} ChestPuzzle;
 
 
 /* ==========================================================================
