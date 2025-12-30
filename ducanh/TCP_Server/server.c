@@ -14,7 +14,7 @@
 #include "users.h"
 #include "team_handler.h" // Để xử lý team
 #include "util.h"
-
+#include "ship_defs.h"//luong
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -266,7 +266,9 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "[ERROR] Server initialization failed\n");
         return EXIT_FAILURE;
     }
-
+    load_all_ships(); 
+    printf("[INFO] Game Data Loaded (Ships & Weapons).\n");
+    
     server_run();
     server_shutdown();
 

@@ -35,6 +35,7 @@ typedef struct {
     struct sockaddr_in client_addr; /**< Client address */
     int current_match_id;       /**< Current match ID, -1 if not in match */
     int current_team_id;        /**< Current team ID, -1 if not in team */
+    int coin; //Lượng thêm
 } ServerSession;
 
 /**

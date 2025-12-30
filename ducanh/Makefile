@@ -60,6 +60,13 @@ SERVER_OBJS = $(SERVER_DIR)/server.o \
               $(SERVER_DIR)/config.o \
               $(SERVER_DIR)/db.o
 >>>>>>> cf8f787d1e1c2bb308b11e327c28e63ed19f2cdf
+              $(SERVER_DIR)/game_logic.o \
+              $(SERVER_DIR)/chest_logic.o \
+              $(SERVER_DIR)/challenge_logic.o \
+              $(SERVER_DIR)/dc.o \
+              $(SERVER_DIR)/ship_defs.o \
+              $(SERVER_DIR)/networking.o \
+              $(SERVER_DIR)/file_transfer.o \
 
 .PHONY: all clean client server
 
