@@ -226,6 +226,72 @@ int server_handle_start_match(ServerSession *session, int opponent_team_id);
  */
 int server_handle_get_match_result(ServerSession *session, int match_id);
 
+
+
+void process_fire_request(int attacker_id, int target_id, int weapon_id);
+int calculate_and_update_damage(Ship* attacker, Ship* target, int weapon_id);
+
+
+int server_handle_fire(ServerSession *session, int target_id, int weapon_id, FireResult *result);
+
+/**
+ * @brief Xử lý yêu cầu gửi lời thách đấu
+ * @param session Phiên làm việc của người gửi (phải là Leader)
+ * @param target_team_id ID của đội bị thách đấu
+ * @param new_challenge_id Con trỏ lưu ID của challenge mới tạo
+ * @return Mã phản hồi (130 nếu thành công, hoặc các mã lỗi 315, 316...)
+ */
+int server_handle_send_challenge(ServerSession *session, int target_team_id, int *new_challenge_id);
+
+/**
+ * @brief Xử lý yêu cầu chấp nhận lời thách đấu
+ * @param session Phiên làm việc của người nhận (phải là Leader đội bị thách đấu)
+ * @param challenge_id ID của bản ghi thách đấu
+ * @return Mã phản hồi (131 nếu thành công)
+ */
+int server_handle_accept_challenge(ServerSession *session, int challenge_id);
+
+/**
+ * @brief Xử lý yêu cầu từ chối lời thách đấu
+ */
+int server_handle_decline_challenge(ServerSession *session, int challenge_id);
+
+/**
+ * @brief Xử lý yêu cầu hủy lời thách đấu
+ */
+int server_handle_cancel_challenge(ServerSession *session, int challenge_id);
+
+
+/**
+ * @brief Khởi tạo rương cho một trận đấu
+ * @param match_id ID của trận đấu diễn ra
+ * @return ID của rương được tạo
+ */
+int server_spawn_chest(int match_id);
+
+/**
+ * @brief Gửi thông báo rương rơi tới toàn bộ người chơi trong trận đấu
+ * @param match_id ID trận đấu cần thông báo
+ */
+void broadcast_chest_drop(int match_id);
+
+/**
+ * @brief Xử lý khi người chơi thực hiện mở rương (trả lời câu hỏi)
+ * @param session Phiên làm việc của người chơi
+ * @param chest_id ID rương muốn mở
+ * @param answer Câu trả lời trắc nghiệm hoặc ngắn
+ */
+int server_handle_open_chest(ServerSession *session, int chest_id, const char *answer);
+
+typedef struct {
+    char question[256];
+    char answer[64];
+} ChestPuzzle;
+
+int server_handle_open_chest(ServerSession *session, int chest_id, const char *answer);
+void get_chest_puzzle(ChestType type, char *q_out, char *a_out);
+
+
 /**
  * @brief Check if session is logged in
  * 
@@ -240,6 +306,7 @@ bool server_is_logged_in(ServerSession *session);
  * @brief Initialize the global session manager
  * Must be called once before using any session manager functions
  */
+
 void init_session_manager(void);
 
 /**
