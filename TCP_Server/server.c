@@ -34,6 +34,7 @@
 #include <arpa/inet.h>
 #include <sys/ioctl.h>
 #include <time.h> 
+#include "ship_defs.h"
 
 static int listen_sock = -1;
 
@@ -301,6 +302,9 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "[ERROR] Server initialization failed\n");
         return EXIT_FAILURE;
     }
+
+    load_all_ships(); 
+    printf("[INFO] Game Data Loaded (Ships & Weapons).\n");
 
     server_run();
     server_shutdown();
