@@ -12,12 +12,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include <pthread.h>
-
-/* ============================================================================
- * MUTEX FOR THREAD SAFETY
- * ============================================================================ */
-static pthread_mutex_t user_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /* ============================================================================
  * HASHTABLE OPERATIONS
