@@ -14,3 +14,5 @@
 .env.test.local
 
 server_activity.log
+
+.fuse_hidden*

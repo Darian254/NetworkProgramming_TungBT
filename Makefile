@@ -49,18 +49,37 @@ SERVER_OBJS = $(SERVER_DIR)/server.o \
               $(SERVER_DIR)/db.o \
               $(SERVER_DIR)/team_handler.o 
 
-.PHONY: all clean client server
+.PHONY: all clean client server setup
+
+# ==============================
+# Setup dependencies
+# ==============================
+setup:
+	@echo "Checking for ncurses library..."
+	@if ! dpkg -l | grep -q "^ii.*libncurses-dev"; then \
+		echo "Installing libncurses-dev..."; \
+		sudo apt-get update && sudo apt-get install -y libncurses-dev; \
+	else \
+		echo "libncurses-dev is already installed."; \
+	fi
+	@if ! dpkg -l | grep -q "^ii.*libncurses6"; then \
+		echo "Installing libncurses6..."; \
+		sudo apt-get install -y libncurses6; \
+	else \
+		echo "libncurses6 is already installed."; \
+	fi
+	@echo "Setup complete!"
 
 # ==============================
 # Build all
 # ==============================
-all: $(CLIENT) $(SERVER)
+all: setup $(CLIENT) $(SERVER)
 
 # ==============================
 # Build client
 # ==============================
-$(CLIENT): $(CLIENT_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^
+$(CLIENT): setup $(CLIENT_OBJS)
+	$(CC) $(CFLAGS) -o $@ $(CLIENT_OBJS) /usr/lib/x86_64-linux-gnu/libncurses.so.6 -ltinfo
 
 # ==============================
 # Build server
@@ -73,6 +92,10 @@ $(SERVER): $(SERVER_OBJS)
 # ==============================
 $(CLIENT_DIR)/%.o: $(CLIENT_DIR)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
+
+# Special rule for ui.c to include ncurses support
+$(CLIENT_DIR)/ui.o: $(CLIENT_DIR)/ui.c
+	$(CC) $(CFLAGS) -DUSE_NCURSES -c $< -o $@
 
 $(SERVER_DIR)/%.o: $(SERVER_DIR)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@

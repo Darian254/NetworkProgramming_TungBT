@@ -1,4 +1,5 @@
 #define _POSIX_C_SOURCE 200112L
+#define USE_NCURSES
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -78,8 +79,14 @@ int main(int argc, char *argv[]) {
      * 3. VÒNG LẶP CHÍNH (MAIN LOOP)
      * ========================================= */
     int choice;
-    char line[64];
     while (1) {
+#ifdef USE_NCURSES
+        choice = display_menu_ncurses();
+        if (choice == -1 || choice == FUNC_EXIT) {
+            break;
+        }
+#else
+        char line[64];
         displayMenu();
         fflush(stdout);
         safeInput(line, sizeof(line));
@@ -88,11 +95,18 @@ int main(int argc, char *argv[]) {
             printf("Invalid input. Please enter a number.\n\n");
             continue;
         }
+#endif
 
         char cmd[512];
         cmd[0] = '\0'; // Reset lệnh
         switch (choice) {
             case FUNC_REGISTER: { /* Register */
+#ifdef USE_NCURSES
+                char username[128], password[128];
+                if (!register_ui_ncurses(username, sizeof(username), password, sizeof(password))) {
+                    continue;
+                }
+#else
                 char username[128], password[128];
                 printf("Username: ");
                 fflush(stdout);
@@ -111,7 +125,7 @@ int main(int argc, char *argv[]) {
                     printf("Password cannot be empty.\n");
                     continue;
                 }
-
+#endif
                 char cmd[512];
                 snprintf(cmd, sizeof(cmd), "REGISTER %s %s", username, password);
                 if (send_line(sock, cmd) < 0) {
@@ -120,13 +134,25 @@ int main(int argc, char *argv[]) {
                 }
 
                 if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+#ifdef USE_NCURSES
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+                    show_message_ncurses("Register Result", pretty);
+#else
                     char pretty[1024];
                     beautify_result(recvbuf, pretty, sizeof(pretty));
                     printf("%s", pretty);
+#endif
                 }
                 break;
             }
             case FUNC_LOGIN: { /* Login */
+#ifdef USE_NCURSES
+                char username[128], password[128];
+                if (!login_ui_ncurses(username, sizeof(username), password, sizeof(password))) {
+                    continue;
+                }
+#else
                 char username[128], password[128];
                 printf("Username: ");
                 fflush(stdout);
@@ -145,7 +171,7 @@ int main(int argc, char *argv[]) {
                     printf("Password cannot be empty.\n");
                     continue;
                 }
-
+#endif
                 char cmd[512];
                 snprintf(cmd, sizeof(cmd), "LOGIN %s %s", username, password);
                 if (send_line(sock, cmd) < 0) {
@@ -154,22 +180,39 @@ int main(int argc, char *argv[]) {
                 }
 
                 if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+#ifdef USE_NCURSES
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+                    show_message_ncurses("Login Result", pretty);
+#else
                     char pretty[1024];
                     beautify_result(recvbuf, pretty, sizeof(pretty));
                     printf("%s", pretty);
+#endif
                 }
                 break;
             }
             case FUNC_LOGOUT: { /* Logout */
+#ifdef USE_NCURSES
+                if (!logout_ui_ncurses()) {
+                    continue;
+                }
+#endif
                 if (send_line(sock, "BYE") < 0) {
                     perror("send() error");
                     break;
                 }
 
                 if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+#ifdef USE_NCURSES
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+                    show_message_ncurses("Logout Result", pretty);
+#else
                     char pretty[1024];
                     beautify_result(recvbuf, pretty, sizeof(pretty));
                     printf("%s", pretty);
+#endif
                 }
                 break;
             }
@@ -180,6 +223,9 @@ int main(int argc, char *argv[]) {
                 }
 
                 if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+#ifdef USE_NCURSES
+                    whoami_ui_ncurses(recvbuf);
+#else
                     // Parse response: "201 username" or error code
                     int code;
                     char username[128] = "";
@@ -192,6 +238,7 @@ int main(int argc, char *argv[]) {
                         beautify_result(recvbuf, pretty, sizeof(pretty));
                         printf("%s", pretty);
                     }
+#endif
                 }
                 break;
             }

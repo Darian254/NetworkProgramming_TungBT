@@ -1,5 +1,9 @@
 #include "ui.h"
 #include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+#include <stdlib.h>
+#include "../TCP_Server/config.h"
 
 void displayMenu() {
 
@@ -39,3 +43,414 @@ void displayMenu() {
     printf("==================================\n");
     printf("Select an option: ");
 }
+
+#ifdef USE_NCURSES
+#include <ncurses.h>
+
+static void get_input_field(WINDOW *win, int y, int x, char *buffer, size_t size, int echo) {
+    int pos = 0;
+    int ch;
+    
+    wmove(win, y, x);
+    wclrtoeol(win);
+    buffer[0] = '\0';
+    
+    while (1) {
+        ch = wgetch(win);
+        
+        if (ch == '\n' || ch == KEY_ENTER) {
+            break;
+        } else if (ch == KEY_BACKSPACE || ch == 127 || ch == '\b') {
+            if (pos > 0) {
+                pos--;
+                buffer[pos] = '\0';
+                wmove(win, y, x + pos);
+                waddch(win, ' ');
+                wmove(win, y, x + pos);
+            }
+        } else if (ch == 27) {  /* ESC key */
+            buffer[0] = '\0';
+            break;
+        } else if (isprint(ch) && pos < (int)(size - 1)) {
+            buffer[pos++] = ch;
+            buffer[pos] = '\0';
+            if (echo) {
+                waddch(win, ch);
+            } else {
+                waddch(win, '*');
+            }
+        }
+    }
+}
+
+int register_ui_ncurses(char *username, size_t username_size, char *password, size_t password_size) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(1);
+    erase();
+    refresh();
+    
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+    
+    int win_h = 10;
+    int win_w = 50;
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+    
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    keypad(win, TRUE);
+    box(win, 0, 0);
+    
+    mvwprintw(win, 1, (win_w - 15) / 2, "REGISTER");
+    mvwprintw(win, 3, 2, "Username: ");
+    mvwprintw(win, 5, 2, "Password: ");
+    mvwprintw(win, 7, (win_w - 30) / 2, "Press Enter to submit");
+    mvwprintw(win, 8, (win_w - 25) / 2, "Press ESC to cancel");
+    
+    wrefresh(win);
+    
+    noecho();
+    curs_set(1);
+    wmove(win, 3, 12);
+    wrefresh(win);
+    get_input_field(win, 3, 12, username, username_size, 1);
+    
+    if (strlen(username) == 0) {
+        delwin(win);
+        clear();
+        refresh();
+        endwin();
+        return 0;
+    }
+    
+    noecho();
+    wmove(win, 5, 12);
+    wrefresh(win);
+    get_input_field(win, 5, 12, password, password_size, 0);
+    
+    int result = (strlen(username) > 0 && strlen(password) > 0) ? 1 : 0;
+    
+    delwin(win);
+    clear();
+    refresh();
+    endwin();
+    return result;
+}
+
+int login_ui_ncurses(char *username, size_t username_size, char *password, size_t password_size) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(1);
+    erase();
+    refresh();
+    
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+    
+    int win_h = 10;
+    int win_w = 50;
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+    
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    keypad(win, TRUE);
+    box(win, 0, 0);
+    
+    mvwprintw(win, 1, (win_w - 8) / 2, "LOGIN");
+    mvwprintw(win, 3, 2, "Username: ");
+    mvwprintw(win, 5, 2, "Password: ");
+    mvwprintw(win, 7, (win_w - 30) / 2, "Press Enter to submit");
+    mvwprintw(win, 8, (win_w - 25) / 2, "Press ESC to cancel");
+    
+    wrefresh(win);
+    
+    noecho();
+    curs_set(1);
+    wmove(win, 3, 12);
+    wrefresh(win);
+    get_input_field(win, 3, 12, username, username_size, 1);
+    
+    if (strlen(username) == 0) {
+        delwin(win);
+        clear();
+        refresh();
+        endwin();
+        return 0;
+    }
+    
+    noecho();
+    wmove(win, 5, 12);
+    wrefresh(win);
+    get_input_field(win, 5, 12, password, password_size, 0);
+    
+    int result = (strlen(username) > 0 && strlen(password) > 0) ? 1 : 0;
+    
+    delwin(win);
+    clear();
+    refresh();
+    endwin();
+    return result;
+}
+
+int logout_ui_ncurses(void) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    erase();
+    refresh();
+    
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+    
+    int win_h = 7;
+    int win_w = 40;
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+    
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    box(win, 0, 0);
+    
+    mvwprintw(win, 1, (win_w - 10) / 2, "LOGOUT");
+    mvwprintw(win, 3, (win_w - 25) / 2, "Are you sure?");
+    mvwprintw(win, 4, (win_w - 20) / 2, "Y - Yes, N - No");
+    
+    wrefresh(win);
+    
+    int ch;
+    int result = 0;
+    
+    while (1) {
+        ch = getch();
+        if (ch == 'y' || ch == 'Y') {
+            result = 1;
+            break;
+        } else if (ch == 'n' || ch == 'N' || ch == 27) {  /* ESC key */
+            result = 0;
+            break;
+        }
+    }
+    
+    delwin(win);
+    clear();
+    refresh();
+    endwin();
+    return result;
+}
+
+void whoami_ui_ncurses(const char *response) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    erase();
+    refresh();
+    
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+    
+    int code;
+    char username[128] = "";
+    sscanf(response, "%d %127s", &code, username);
+    
+    int win_h = 8;
+    int win_w = 50;
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+    
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    box(win, 0, 0);
+    
+    mvwprintw(win, 1, (win_w - 10) / 2, "WHO AM I");
+    
+    if (code == 201 && strlen(username) > 0) {
+        mvwprintw(win, 3, 2, "You are logged in as:");
+        mvwprintw(win, 4, 4, "%s", username);
+    } else {
+        char msg[256];
+        snprintf(msg, sizeof(msg), "Error: %s", response);
+        mvwprintw(win, 3, 2, "%.*s", win_w - 4, msg);
+    }
+    
+    mvwprintw(win, 6, (win_w - 20) / 2, "Press any key...");
+    
+    wrefresh(win);
+    getch();
+    
+    delwin(win);
+    clear();
+    refresh();
+    endwin();
+}
+
+void show_message_ncurses(const char *title, const char *message) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    erase();
+    refresh();
+    
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+    
+    int win_h = 8;
+    int win_w = 60;
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+    
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    box(win, 0, 0);
+    
+    mvwprintw(win, 1, (win_w - strlen(title)) / 2, "%s", title);
+    
+    int msg_len = strlen(message);
+    int msg_y = 3;
+    int msg_x = 2;
+    int max_msg_w = win_w - 4;
+    
+    if (msg_len <= max_msg_w) {
+        mvwprintw(win, msg_y, msg_x, "%.*s", max_msg_w, message);
+    } else {
+        char temp[256];
+        strncpy(temp, message, max_msg_w);
+        temp[max_msg_w] = '\0';
+        mvwprintw(win, msg_y, msg_x, "%s", temp);
+    }
+    
+    mvwprintw(win, 6, (win_w - 20) / 2, "Press any key...");
+    
+    wrefresh(win);
+    getch();
+    
+    delwin(win);
+    clear();
+    refresh();
+    endwin();
+}
+
+int display_menu_ncurses(void) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(0);
+    
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+    
+    int win_h = 32;
+    int win_w = 75;
+    
+    if (win_h > max_y - 2) win_h = max_y - 2;
+    if (win_w > max_x - 2) win_w = max_x - 2;
+    
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+    
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    keypad(win, TRUE);
+    box(win, 0, 0);
+    
+    mvwprintw(win, 1, (win_w - 12) / 2, "MAIN MENU");
+    
+    int y = 3;
+    mvwprintw(win, y++, 2, " 0. Register");
+    mvwprintw(win, y++, 2, " 1. Log in");
+    mvwprintw(win, y++, 2, " 2. Logout");
+    mvwprintw(win, y++, 2, " 3. Who am I?");
+    mvwprintw(win, y++, 2, " 4. Exit");
+    y++;
+    mvwprintw(win, y++, 2, " [PERSONAL]");
+    mvwprintw(win, y++, 2, " 5. Check my coin");
+    mvwprintw(win, y++, 2, " 6. Check my armor");
+    mvwprintw(win, y++, 2, " 7. Buy armor");
+    y++;
+    mvwprintw(win, y++, 2, " [TEAM OPERATIONS]");
+    mvwprintw(win, y++, 2, " 8. Create Team");
+    mvwprintw(win, y++, 2, " 9. Delete Team");
+    mvwprintw(win, y++, 2, "10. List All Teams");
+    mvwprintw(win, y++, 2, "11. Join Team");
+    mvwprintw(win, y++, 2, "12. Leave Team");
+    mvwprintw(win, y++, 2, "13. Team Members");
+    mvwprintw(win, y++, 2, "14. Kick Member (Captain only)");
+    mvwprintw(win, y++, 2, "15. Approve Join (Captain only)");
+    mvwprintw(win, y++, 2, "16. Reject Join (Captain only)");
+    mvwprintw(win, y++, 2, "17. Invite Member (Captain only)");
+    mvwprintw(win, y++, 2, "18. Accept Invite");
+    mvwprintw(win, y++, 2, "19. Reject Invite");
+    mvwprintw(win, y++, 2, "20. Start Match");
+    mvwprintw(win, y++, 2, "21. Get Match Result");
+    mvwprintw(win, y++, 2, "22. End Match");
+    mvwprintw(win, y++, 2, "23. Repair HP");
+    
+    mvwprintw(win, win_h - 2, 2, "Enter option number (0-23) or ESC to exit: ");
+    
+    wrefresh(win);
+    
+    char input[64] = {0};
+    int pos = 0;
+    int ch;
+    int result = -1;
+    
+    int input_x = 50;
+    if (input_x + 10 > win_w - 2) input_x = win_w - 12;
+    
+    wmove(win, win_h - 2, input_x);
+    wrefresh(win);
+    
+    while (1) {
+        ch = wgetch(win);
+        
+        if (ch == '\n' || ch == KEY_ENTER) {
+            if (pos > 0) {
+                input[pos] = '\0';
+                int choice = atoi(input);
+                if (choice >= 0 && choice <= 23) {
+                    result = choice;
+                    break;
+                } else {
+                    mvwprintw(win, win_h - 1, 2, "Invalid option! Enter 0-23: ");
+                    wclrtoeol(win);
+                    wmove(win, win_h - 2, input_x);
+                    pos = 0;
+                    input[0] = '\0';
+                    wrefresh(win);
+                }
+            }
+        } else if (ch == KEY_BACKSPACE || ch == 127 || ch == '\b') {
+            if (pos > 0) {
+                pos--;
+                input[pos] = '\0';
+                wmove(win, win_h - 2, input_x + pos);
+                waddch(win, ' ');
+                wmove(win, win_h - 2, input_x + pos);
+                mvwprintw(win, win_h - 1, 2, "                                    ");
+                wrefresh(win);
+            }
+        } else if (ch == 27) {  /* ESC key */
+            result = FUNC_EXIT;
+            break;
+        } else if (isdigit(ch) && pos < 2) {
+            input[pos++] = ch;
+            input[pos] = '\0';
+            waddch(win, ch);
+            mvwprintw(win, win_h - 1, 2, "                                    ");
+            wrefresh(win);
+        }
+    }
+    
+    delwin(win);
+    clear();
+    refresh();
+    endwin();
+    
+    return result;
+}
+
+#endif
