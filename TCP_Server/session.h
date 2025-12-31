@@ -283,11 +283,6 @@ void broadcast_chest_drop(int match_id);
  */
 int server_handle_open_chest(ServerSession *session, int chest_id, const char *answer);
 
-typedef struct {
-    char question[256];
-    char answer[64];
-} ChestPuzzle;
-
 int server_handle_open_chest(ServerSession *session, int chest_id, const char *answer);
 void get_chest_puzzle(ChestType type, char *q_out, char *a_out);
 

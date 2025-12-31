@@ -258,10 +258,10 @@ typedef struct {
     int         armor_slot_2_value;
     
     // Weapons
-    // int         cannon_ammo;                    // 30mm ammo count
-    // int         laser_count;                    // Max 4
-    // int         missile_count;                  // Missile count
-    EquippedWeapon weapons[MAX_WEAPONS];
+    int         cannon_ammo;                    // 30mm ammo count
+    int         laser_count;                    // Max 4
+    int         missile_count;                  // Missile count
+    // EquippedWeapon weapons[MAX_WEAPONS];
 } Ship;
 
 typedef struct {
@@ -269,23 +269,6 @@ typedef struct {
     char answer[64];
 } ChestPuzzle;
 
-
-
-// Cấu trúc Vũ khí (Template - Dữ liệu tĩnh)
-typedef struct {
-    int weapon_id;
-    char name[30];
-    int damage;
-    int cost;
-    int ammo_capacity;
-} WeaponTemplate;
-
-// Cấu trúc Trang bị (Trạng thái động)
-typedef struct {
-    int weapon_id;      // ID
-    int slot_number;    // 1-3
-    int current_ammo;   // Số đạn
-} EquippedWeapon;
 
 /* ==========================================================================
  * STRUCT: RepairResult
@@ -307,6 +290,7 @@ typedef struct {
     int target_remaining_hp;
     int target_remaining_armor;
 } FireResult;
+
 /* ============================================================================
  * ITEMS CONFIG (STATIC - READ ONLY)
  * Description: Defines purchasable items
@@ -375,14 +359,14 @@ int find_available_opponent_team(int user_team_id);
 /* Match operations */
 Match* find_match_by_id(int match_id);
 Match* create_match(int team1_id, int team2_id);
-void end_match(int match_id, int winner_team_id);
+// void end_match(int match_id, int winner_team_id);
 
 /* Ship operations (in-match only) */
-Ship* find_ship(int match_id, const char *username);
-Ship* create_ship(int match_id, const char *username);
-void delete_ships_by_match(int match_id);
-int ship_take_damage(Ship *s, int damage);
-ResponseCode ship_buy_armor(UserTable *user_table, Ship *ship, const char *username, ArmorType type);
+// Ship* find_ship(int match_id, const char *username);
+// Ship* create_ship(int match_id, const char *username);
+// void delete_ships_by_match(int match_id);
+// int ship_take_damage(Ship *s, int damage);
+// ResponseCode ship_buy_armor(UserTable *user_table, Ship *ship, const char *username, ArmorType type);
 ResponseCode ship_buy_weapon(UserTable *user_table, Ship *ship, const char *username, WeaponType type);
 
 /* Item helpers */

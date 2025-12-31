@@ -7,30 +7,10 @@
 #include "config.h"
 #include "db_schema.h"
 #include "util.h"
-#include "challenge.h"  // For RESP_CHALLENGE_* constants
-#include "chest_logic.h"  // For RESP_CHEST_OPEN_OK constant
 #include "team_handler.h" // Team management handlers
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-
-// Forward declarations to avoid Ship struct conflict
-typedef struct {
-    int attacker_id;
-    int target_id;
-    int damage_dealt;
-    int target_remaining_hp;
-    int target_remaining_armor;
-} FireResult;
-
-// Forward declarations for functions from other modules
-int server_handle_fire(ServerSession *session, int target_id, int weapon_id, FireResult *result);
-void broadcast_fire_event(int attacker_id, int target_id, int damage_dealt, int target_remaining_hp, int target_remaining_armor);
-int server_handle_send_challenge(ServerSession *session, int target_team, int *cid);
-int server_handle_accept_challenge(ServerSession *session, int cid);
-int server_handle_decline_challenge(ServerSession *session, int cid);
-int server_handle_cancel_challenge(ServerSession *session, int cid);
-int server_handle_open_chest(ServerSession *session, int chest_id, const char *answer);
 
 /**
  * @file router.c

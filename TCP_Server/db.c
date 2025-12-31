@@ -184,33 +184,33 @@ int get_armor_value(ArmorType type) {
     }
 }
 
-//Tìm tàu theo id
-Ship* find_ship_by_id(int ship_id) {
-    for (int i = 0; i < num_active_ships; i++) {
-        if (active_ships[i].ship_id == ship_id) {
-            return &active_ships[i];
-        }
-    }
-    return NULL;
-}
+// //Tìm tàu theo id
+// Ship* find_ship_by_id(int ship_id) {
+//     for (int i = 0; i < num_active_ships; i++) {
+//         if (active_ships[i].ship_id == ship_id) {
+//             return &active_ships[i];
+//         }
+//     }
+//     return NULL;
+// }
 
 
-//Lấy template vũ khí
-WeaponTemplate* get_weapon_template(int weapon_id) {
-    for (int i = 0; i < 3; i++) {
-        if (weapon_templates[i].weapon_id == weapon_id) {
-            return &weapon_templates[i];
-        }
-    }
-    return NULL;
-}
+// //Lấy template vũ khí
+// WeaponTemplate* get_weapon_template(int weapon_id) {
+//     for (int i = 0; i < 3; i++) {
+//         if (weapon_templates[i].weapon_id == weapon_id) {
+//             return &weapon_templates[i];
+//         }
+//     }
+//     return NULL;
+// }
 
 
-void update_ship_state(Ship* ship) {
-    if (ship->hp == 0) {
-        printf("[DEBUG] Tàu %d đã bị phá hủy!\n", ship->player_id);
-    }
-}
+// void update_ship_state(Ship* ship) {
+//     if (ship->hp == 0) {
+//         printf("[DEBUG] Tàu %d đã bị phá hủy!\n", ship->player_id);
+//     }
+// }
 
 
 /* ============================================================================
@@ -370,80 +370,80 @@ Ship* find_ship(int match_id, const char *username) {
     return NULL;
 }
 
-Ship* create_ship(int match_id, const char *username) {
-    if (!username) return NULL;
-    if (ship_count >= MAX_SHIPS) return NULL;
+// Ship* create_ship(int match_id, const char *username) {
+//     if (!username) return NULL;
+//     if (ship_count >= MAX_SHIPS) return NULL;
     
-    Ship *ship = &ships[ship_count];
-    ship->match_id = match_id;
-    ship->player_id = (int)hashFunc(username);
-    ship->hp = SHIP_DEFAULT_HP;
-    ship->armor_slot_1_type = ARMOR_NONE;
-    ship->armor_slot_1_value = 0;
-    ship->armor_slot_2_type = ARMOR_NONE;
-    ship->armor_slot_2_value = 0;
-    //TODO
-    ship->cannon_ammo = SHIP_DEFAULT_CANNON;
-    ship->laser_count = SHIP_DEFAULT_LASER;
-    ship->missile_count = SHIP_DEFAULT_MISSILE;
-    ship_count++;
-    return ship;
-}
+//     Ship *ship = &ships[ship_count];
+//     ship->match_id = match_id;
+//     ship->player_id = (int)hashFunc(username);
+//     ship->hp = SHIP_DEFAULT_HP;
+//     ship->armor_slot_1_type = ARMOR_NONE;
+//     ship->armor_slot_1_value = 0;
+//     ship->armor_slot_2_type = ARMOR_NONE;
+//     ship->armor_slot_2_value = 0;
+//     //TODO
+//     ship->cannon_ammo = SHIP_DEFAULT_CANNON;
+//     ship->laser_count = SHIP_DEFAULT_LASER;
+//     ship->missile_count = SHIP_DEFAULT_MISSILE;
+//     ship_count++;
+//     return ship;
+// }
 
-void delete_ships_by_match(int match_id) {
-    for (int i = ship_count - 1; i >= 0; i--) {
-        if (ships[i].match_id == match_id) {
+// void delete_ships_by_match(int match_id) {
+//     for (int i = ship_count - 1; i >= 0; i--) {
+//         if (ships[i].match_id == match_id) {
 
-            for (int j = i; j < ship_count - 1; j++) {
-                ships[j] = ships[j + 1];
-            }
-            ship_count--;
-        }
-    }
-}
+//             for (int j = i; j < ship_count - 1; j++) {
+//                 ships[j] = ships[j + 1];
+//             }
+//             ship_count--;
+//         }
+//     }
+// }
 
-/**
- * Apply damage to ship
- * Damage goes to armor first, then HP
- * Returns remaining HP
- */
-int ship_take_damage(Ship *s, int damage) {
-    if (!s || damage <= 0) return s ? s->hp : 0;
+// /**
+//  * Apply damage to ship
+//  * Damage goes to armor first, then HP
+//  * Returns remaining HP
+//  */
+// int ship_take_damage(Ship *s, int damage) {
+//     if (!s || damage <= 0) return s ? s->hp : 0;
     
-    int remaining_damage = damage;
+//     int remaining_damage = damage;
     
-    // Apply to armor slot 1 first
-    if (s->armor_slot_1_value > 0) {
-        if (s->armor_slot_1_value >= remaining_damage) {
-            s->armor_slot_1_value -= remaining_damage;
-            return s->hp;
-        } else {
-            remaining_damage -= s->armor_slot_1_value;
-            s->armor_slot_1_value = 0;
-            s->armor_slot_1_type = ARMOR_NONE;
-        }
-    }
+//     // Apply to armor slot 1 first
+//     if (s->armor_slot_1_value > 0) {
+//         if (s->armor_slot_1_value >= remaining_damage) {
+//             s->armor_slot_1_value -= remaining_damage;
+//             return s->hp;
+//         } else {
+//             remaining_damage -= s->armor_slot_1_value;
+//             s->armor_slot_1_value = 0;
+//             s->armor_slot_1_type = ARMOR_NONE;
+//         }
+//     }
     
-    // Apply to armor slot 2
-    if (s->armor_slot_2_value > 0 && remaining_damage > 0) {
-        if (s->armor_slot_2_value >= remaining_damage) {
-            s->armor_slot_2_value -= remaining_damage;
-            return s->hp;
-        } else {
-            remaining_damage -= s->armor_slot_2_value;
-            s->armor_slot_2_value = 0;
-            s->armor_slot_2_type = ARMOR_NONE;
-        }
-    }
+//     // Apply to armor slot 2
+//     if (s->armor_slot_2_value > 0 && remaining_damage > 0) {
+//         if (s->armor_slot_2_value >= remaining_damage) {
+//             s->armor_slot_2_value -= remaining_damage;
+//             return s->hp;
+//         } else {
+//             remaining_damage -= s->armor_slot_2_value;
+//             s->armor_slot_2_value = 0;
+//             s->armor_slot_2_type = ARMOR_NONE;
+//         }
+//     }
     
-    // Apply remaining damage to HP
+//     // Apply remaining damage to HP
 
-    if (remaining_damage > 0) {
-        s->hp -= remaining_damage;
-        if (s->hp < 0) s->hp = 0;
-    }
-    return s->hp;
-}
+//     if (remaining_damage > 0) {
+//         s->hp -= remaining_damage;
+//         if (s->hp < 0) s->hp = 0;
+//     }
+//     return s->hp;
+// }
 
 /**
  * Buy armor for ship (with mutex)
@@ -597,15 +597,15 @@ Match* create_match(int team1_id, int team2_id) {
     return match;  // Return the new match pointer
 }
 
-void end_match(int match_id, int winner_team_id) {
-    Match *match = find_match_by_id(match_id);
-    if (!match) return;
+// void end_match(int match_id, int winner_team_id) {
+//     Match *match = find_match_by_id(match_id);
+//     if (!match) return;
     
-    match->status = MATCH_FINISHED;
-    match->winner_team_id = winner_team_id;
-    match->duration = (int)(time(NULL) - match->started_at);
+//     match->status = MATCH_FINISHED;
+//     match->winner_team_id = winner_team_id;
+//     match->duration = (int)(time(NULL) - match->started_at);
     
-    // Delete all ships for this match
-    delete_ships_by_match(match_id);
-}
+//     // Delete all ships for this match
+//     delete_ships_by_match(match_id);
+// }
 

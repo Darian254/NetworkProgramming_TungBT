@@ -85,3 +85,4 @@
 2025-12-31 03:14:32 [INFO] action=INVITE user=admin input="ducanh" code=124 message="Player invited to team."
 2025-12-31 03:14:39 [INFO] action=INVITE_REJECT user=ducanh input="abc" code=127 message="Team invitation rejected."
 2025-12-31 03:14:44 [INFO] action=TEAM_MEMBER_LIST user=admin input="" code=205 message="Team members list retrieved successfully."
+2025-12-31 11:19:31 [INFO] action=LOGIN user=- input="ducanh Admin@2024" code=110 message="You have logged in successfully."
