@@ -103,7 +103,7 @@ typedef enum {
     RESP_BUY_ITEM_OK = 334,       /**< Buy item successful */
     RESP_END_MATCH_OK = 140,        /**< Match ended successfully */
     RESP_MATCH_INFO_OK = 206,     /**< Match info retrieved successfully */
-    
+    RESP_HP_INFO_OK = 207,         /**< HP info retrieved successfully */
     RESP_REPAIR_OK = 132,         /**< Repair successful */
 
     /* Client error codes - Command/Syntax */

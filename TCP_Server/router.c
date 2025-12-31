@@ -484,6 +484,28 @@ void command_routes(int client_sock, char *command) {
         log_activity("MATCH_INFO", session->username, session->isLoggedIn, payload, response_code);
     }
 
+        // ========== GET HP ==========
+
+    else if (strcmp(type, "GET_HP") == 0) {
+
+        int hp = -1, maxhp = -1;
+
+        response_code = server_handle_get_hp(session, &hp, &maxhp);
+
+        if (response_code == RESP_HP_INFO_OK) {
+
+            snprintf(response, sizeof(response), "%d %d %d\r\n", response_code, hp, maxhp);
+
+        } else {
+
+            snprintf(response, sizeof(response), "%d\r\n", response_code);
+
+        }
+
+        log_activity("GET_HP", session->username, session->isLoggedIn, "", response_code);
+
+    }
+
     // ========== Unknown Command ==========
     else {
         // TODO: Send syntax error for unknown commands

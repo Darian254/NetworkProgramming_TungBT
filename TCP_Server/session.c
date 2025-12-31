@@ -141,18 +141,15 @@ int server_handle_buyarmor(ServerSession *session, UserTable *ut, int armor_type
         return RESP_SYNTAX_ERROR;
     }
     
-    printf("[DEBUG] server_handle_buyarmor: session->isLoggedIn: %d\n", session->isLoggedIn);
     if (!session->isLoggedIn) {
         return RESP_NOT_LOGGED;
     }
 
-    printf("[DEBUG] server_handle_buyarmor: session->current_match_id: %d\n", session->current_match_id);
     int match_id = session->current_match_id;    
     if (match_id <= 0) {
         return RESP_NOT_IN_MATCH;
     }
-    
-    printf("[DEBUG] server_handle_buyarmor: armor_type: %d\n", armor_type);
+
     if (armor_type < ARMOR_BASIC || armor_type > ARMOR_ENHANCED) {
         return RESP_ARMOR_NOT_FOUND;
     }
@@ -161,9 +158,7 @@ int server_handle_buyarmor(ServerSession *session, UserTable *ut, int armor_type
     Ship *ship = find_ship(match_id, session->username);
     if (!ship) {
         return RESP_INTERNAL_ERROR; 
-    }
-    printf("[DEBUG] server_handle_buyarmor: ship: %s\n", ship->player_username);
-    printf("[DEBUG] server_handle_buyarmor: username: %s\n", session->username);    
+    } 
     return ship_buy_armor(ut, ship, session->username, armor_type);
 }
 
@@ -320,16 +315,23 @@ int server_handle_start_match(ServerSession *session, int opponent_team_id) {
     extern TeamMember team_members[];
     extern int team_member_count;
     
+    /* Create ships for all members and update their sessions' current_match_id */
     for (int i = 0; i < team_member_count; i++) {
-        if (team_members[i].team_id == user_team_id || 
-            team_members[i].team_id == opponent_team_id) {
-            create_ship(new_match->match_id, team_members[i].username);
+        int tid = team_members[i].team_id;
+        if (tid == new_match->team1_id || tid == new_match->team2_id) {
+            const char *member_username = team_members[i].username;
+
+            /* Create ship for member */
+            create_ship(new_match->match_id, member_username);
+
+            /* Update member session if online */
+            SessionNode *node = find_session_by_username(member_username);
+            if (node) {
+                node->session.current_match_id = new_match->match_id;
+                update_session_by_socket(node->session.socket_fd, &node->session);
+            }
         }
     }
-    
-    // 13. Update session with new match ID
-    session->current_match_id = new_match->match_id;
-    update_session_by_socket(session->socket_fd, session);
     
     // 14. Success
     return RESP_START_MATCH_OK;
@@ -413,6 +415,21 @@ int server_handle_get_match_result(ServerSession *session, int match_id) {
     }
     
     return RESP_INTERNAL_ERROR;
+}
+
+int server_handle_get_hp(ServerSession *session, int *hp_out, int *max_hp_out) {
+    if (!session || !hp_out || !max_hp_out) return RESP_SYNTAX_ERROR;
+    if (!session->isLoggedIn) return RESP_NOT_LOGGED;
+
+    int match_id = session->current_match_id;
+    if (match_id <= 0) return RESP_NOT_IN_MATCH;
+
+    Ship *ship = find_ship(match_id, session->username);
+    if (!ship) return RESP_INTERNAL_ERROR;
+
+    *hp_out = ship->hp;
+    *max_hp_out = SHIP_DEFAULT_HP;
+    return RESP_HP_INFO_OK;
 }
 
 
@@ -822,19 +839,15 @@ int server_handle_match_info(int match_id, char *output, size_t output_size, Use
     if (!output || output_size == 0) {
         return RESP_INTERNAL_ERROR;
     }
-    
-    // Find match
-    printf("[DEBUG] Finding match by ID: %d\n", match_id);
+
     Match *match = find_match_by_id(match_id);
     if (!match) {
-        printf("[DEBUG] Match not found\n");
         return RESP_MATCH_NOT_FOUND;
     }
     
     // Get team info
     Team *team1 = find_team_by_id(match->team1_id);
     Team *team2 = find_team_by_id(match->team2_id);
-    printf("[DEBUG] Team 1: %s, Team 2: %s\n", team1->name, team2->name);
     if (!team1 || !team2) {
         return RESP_INTERNAL_ERROR;
     }
@@ -851,23 +864,17 @@ int server_handle_match_info(int match_id, char *output, size_t output_size, Use
                       match->status == MATCH_PENDING ? "Pending" :
                       match->status == MATCH_RUNNING ? "Running" :
                       match->status == MATCH_FINISHED ? "Finished" : "Canceled");
-    printf("[DEBUG] Match status: %s\n", match->status == MATCH_PENDING ? "Pending" :
-                      match->status == MATCH_RUNNING ? "Running" :
-                      match->status == MATCH_FINISHED ? "Finished" : "Canceled");
     offset += snprintf(buffer + offset, sizeof(buffer) - offset,
                       "Duration: %d seconds\n", match->duration);
-    printf("[DEBUG] Duration: %d seconds\n", match->duration);
     if (match->status == MATCH_FINISHED) {
         if (match->winner_team_id == -1) {
             offset += snprintf(buffer + offset, sizeof(buffer) - offset,
                              "Result: DRAW\n");
-            printf("[DEBUG] Result: DRAW\n");
         } else {
             Team *winner = find_team_by_id(match->winner_team_id);
             offset += snprintf(buffer + offset, sizeof(buffer) - offset,
                              "Winner: Team %s (ID: %d)\n", 
                              winner ? winner->name : "Unknown", match->winner_team_id);
-            printf("[DEBUG] Winner: Team %s (ID: %d)\n", winner ? winner->name : "Unknown", match->winner_team_id);
         }
     }
     
@@ -876,21 +883,16 @@ int server_handle_match_info(int match_id, char *output, size_t output_size, Use
     // Team 1 info
     offset += snprintf(buffer + offset, sizeof(buffer) - offset,
                       "--- TEAM 1: %s (ID: %d) ---\n", team1->name, team1->team_id);
-    printf("[DEBUG] Team 1: %s (ID: %d)\n", team1->name, team1->team_id);
     // Get team 1 members
     for (int i = 0; i < team_member_count; i++) {
         if (team_members[i].team_id == team1->team_id) {
             const char *username = team_members[i].username;
             offset += snprintf(buffer + offset, sizeof(buffer) - offset,
                              "  Player: %s", username);
-            printf("[DEBUG] Player: %s\n", username);
             User *user = findUser(user_table, username);
             if (user) {
-                printf("[DEBUG] Player's coin: %d\n", user->coin);
             } else {
-                printf("[DEBUG] Player not found\n");
             }
-            printf("[DEBUG] Player's role: %d\n", team_members[i].role);
             // Find ship for this player
             Ship *ship = find_ship(match_id, username);
             if (ship) {
@@ -902,17 +904,10 @@ int server_handle_match_info(int match_id, char *output, size_t output_size, Use
                                  ship->cannon_ammo,
                                  ship->laser_count,
                                  ship->missile_count);
-            printf("[DEBUG] Ship: HP: %d | Armor1: %d | Armor2: %d | Cannon: %d | Laser: %d | Missile: %d\n",
-                                 ship->hp,
-                                 ship->armor_slot_1_value,
-                                 ship->armor_slot_2_value,
-                                 ship->cannon_ammo,
-                                 ship->laser_count,
-                                 ship->missile_count);
+        
             } else {
                 offset += snprintf(buffer + offset, sizeof(buffer) - offset,
                                  " | No ship data\n");
-            printf("[DEBUG] No ship data\n");
             }
         }
     }
@@ -922,7 +917,6 @@ int server_handle_match_info(int match_id, char *output, size_t output_size, Use
     // Team 2 info
     offset += snprintf(buffer + offset, sizeof(buffer) - offset,
                       "--- TEAM 2: %s (ID: %d) ---\n", team2->name, team2->team_id);
-    printf("[DEBUG] Team 2: %s (ID: %d)\n", team2->name, team2->team_id);
     // Get team 2 members
     for (int i = 0; i < team_member_count; i++) {
         if (team_members[i].team_id == team2->team_id) {
@@ -930,14 +924,9 @@ int server_handle_match_info(int match_id, char *output, size_t output_size, Use
             offset += snprintf(buffer + offset, sizeof(buffer) - offset,
                              "  Player: %s", username);
                              
-            printf("[DEBUG] Player: %s\n", username);
             User *user = findUser(user_table, username);
-            if (user) {
-                printf("[DEBUG] Player's coin: %d\n", user->coin);
-            } else {
-                printf("[DEBUG] Player not found\n");
-            }
-            printf("[DEBUG] Player's role: %d\n", team_members[i].role);
+        
+
             // Find ship for this player
             Ship *ship = find_ship(match_id, username);
             if (ship) {
@@ -949,17 +938,10 @@ int server_handle_match_info(int match_id, char *output, size_t output_size, Use
                                  ship->cannon_ammo,
                                  ship->laser_count,
                                  ship->missile_count);
-            printf("[DEBUG] Ship: HP: %d | Armor1: %d | Armor2: %d | Cannon: %d | Laser: %d | Missile: %d\n",
-                                 ship->hp,
-                                 ship->armor_slot_1_value,
-                                 ship->armor_slot_2_value,
-                                 ship->cannon_ammo,
-                                 ship->laser_count,
-                                 ship->missile_count);
+            
             } else {
                 offset += snprintf(buffer + offset, sizeof(buffer) - offset,
                                  " | No ship data\n");
-            printf("[DEBUG] No ship data\n");
             }
         }
     }
@@ -967,7 +949,6 @@ int server_handle_match_info(int match_id, char *output, size_t output_size, Use
     // Copy to output
     strncpy(output, buffer, output_size - 1);
     output[output_size - 1] = '\0';
-    printf("[DEBUG] Output: %s\n", output);
     return RESP_MATCH_INFO_OK;
 }
 

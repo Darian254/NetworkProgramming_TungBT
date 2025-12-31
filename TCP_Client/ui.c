@@ -1135,12 +1135,7 @@ int home_join_team_ncurses(char *team_name, size_t team_name_size) {
     return result;
 }
 
-// View invites: display list and allow accept/reject
-// Returns: -1=back, 0=no invites, 1=action taken (accept/reject)
-// team_name_out: the team name that was acted upon (if result=1)
-// action_out: 0=reject, 1=accept (if result=1)
 int home_view_invites_ncurses(const char *invites_data, char *team_name_out, size_t team_name_out_size, int *action_out) {
-    // 1. Setup màn hình ncurses
     initscr();
     cbreak();
     noecho();
@@ -1163,20 +1158,15 @@ int home_view_invites_ncurses(const char *invites_data, char *team_name_out, siz
 
     mvwprintw(win, 1, (win_w - 13) / 2, "MY INVITES");
     
-    // 2. Parse dữ liệu từ Server
-    // Format mong đợi: "TeamA (ID:1)|TeamB (ID:2)|" (dùng | ngăn cách)
     char invites_copy[2048];
     strncpy(invites_copy, invites_data ? invites_data : "", sizeof(invites_copy) - 1);
     invites_copy[sizeof(invites_copy) - 1] = '\0';
     
-    // Biến lưu danh sách team
     char team_names[20][128];
     int team_count = 0;
 
-    // Tách chuỗi bằng dấu gạch đứng '|' (theo protocol đã sửa)
     char *line = strtok(invites_copy, "|"); 
     while (line != NULL && team_count < 20) {
-        // Xóa khoảng trắng đầu dòng nếu có
         while (*line && isspace(*line)) line++;
         
         if (strlen(line) > 0) {
@@ -1187,7 +1177,6 @@ int home_view_invites_ncurses(const char *invites_data, char *team_name_out, siz
         line = strtok(NULL, "|");
     }
 
-    // 3. Xử lý trường hợp không có invite hoặc server gửi thông báo rỗng
     if (team_count == 0 || (team_count == 1 && strstr(team_names[0], "No pending") != NULL)) {
         mvwprintw(win, 5, 2, "No pending invites.");
         mvwprintw(win, 7, 2, "Press any key to back...");
@@ -1197,18 +1186,16 @@ int home_view_invites_ncurses(const char *invites_data, char *team_name_out, siz
         clear();
         refresh();
         endwin();
-        return 0; // Trả về 0 để Client không làm gì cả
+        return 0;
     }
 
-    // 4. Vòng lặp hiển thị và xử lý phím bấm
     mvwprintw(win, 3, 2, "You have %d pending invite(s):", team_count);
     
     int selected = 0;
     int result = -1;
     
     while (1) {
-        // Vẽ danh sách
-        for (int i = 0; i < 10; i++) { // Hiển thị tối đa 10 dòng
+        for (int i = 0; i < 10; i++) { 
             // Xóa dòng cũ
             for(int k=2; k<win_w-2; k++) mvwaddch(win, 5+i, k, ' '); 
             

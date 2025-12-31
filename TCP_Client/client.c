@@ -22,6 +22,7 @@ static void usage(const char *prog) {
     fprintf(stderr, "Usage: %s <ServerIP> <PortNumber>\n", prog);
     fprintf(stderr, "Example: %s 127.0.0.1 5500\n", prog);
 }
+
 /**
  * @brief TCP client entry point.
  *
@@ -936,10 +937,16 @@ int main(int argc, char *argv[]) {
                         }
                     }
                     
-                    // Optionally fetch current HP/max HP (if GET_HP command exists)
-                    // For now, pass -1 for unknown HP values
+                    // Fetch current HP/max HP
                     int current_hp = -1, max_hp = -1;
-                    // TODO: Add GET_HP command if available
+                    if (send_line(sock, "GET_HP") >= 0 && recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                        int code_tmp = 0;
+                        int hp_tmp = -1, max_tmp = -1;
+                        if (sscanf(recvbuf, "%d %d %d", &code_tmp, &hp_tmp, &max_tmp) == 3 && code_tmp == RESP_HP_INFO_OK) {
+                            current_hp = hp_tmp;
+                            max_hp = max_tmp;
+                        }
+                    }
                     
                     int repair_amount = shop_repair_menu_ncurses(current_hp, max_hp, coin);
                     if (repair_amount <= 0) break; // cancelled or invalid
@@ -974,89 +981,138 @@ int main(int argc, char *argv[]) {
             
             case FUNC_HOME_MENU: {
 #ifdef USE_NCURSES
-                // 1. KHAI BÁO BIẾN (Phải đặt đầu khối lệnh)
+                // Fetch user information for display
                 char current_username[128] = "Unknown";
                 long current_coin = -1;
-                
-                // Các biến lưu thông tin Team
                 char team_name[128] = "(No team)";
+
                 char captain[128] = "Unknown";
+
                 int member_count = 0;
+
                 char members_list[1024] = "";
                 int current_hp = -1;
                 int current_armor = -1;
-
-                // 2. FETCH DỮ LIỆU TỪ SERVER
-                // Lấy thông tin user
+                
+                // Get username
                 if (send_line(sock, "WHOAMI") >= 0 && recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
-                    sscanf(recvbuf, "%*d %127s", current_username);
+                    int code_tmp;
+                    sscanf(recvbuf, "%d %127s", &code_tmp, current_username);
                 }
                 
+                // Get coin
                 if (send_line(sock, "GETCOIN") >= 0 && recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
-                    sscanf(recvbuf, "%*d %ld", &current_coin);
+                    int code_tmp;
+                    sscanf(recvbuf, "%d %ld", &code_tmp, &current_coin);
                 }
-
-                // Lấy thông tin Team & Member (Parse tên team từ server)
+                
+                // Get team info (from TEAM_MEMBER_LIST or similar)
                 if (send_line(sock, "TEAM_MEMBER_LIST") >= 0) {
+
                     if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+
                         // Format nhận được: "205 TeamName|Member1|Member2|"
+
                         int code_tmp = 0;
+
                         if (sscanf(recvbuf, "%d", &code_tmp) == 1 && code_tmp == RESP_TEAM_MEMBERS_LIST_OK) {
+
                             char *payload = strchr(recvbuf, ' ');
+
                             if (payload) { 
+
                                 payload++; // Bỏ dấu cách sau mã 205
+
                                 
+
                                 // Copy payload ra buffer tạm để xử lý strtok (tránh làm hỏng buffer gốc nếu cần dùng lại)
+
                                 char temp_buf[2048];
+
                                 strncpy(temp_buf, payload, sizeof(temp_buf) - 1);
+
                                 temp_buf[sizeof(temp_buf) - 1] = '\0';
 
+
+
                                 // Token đầu tiên là Tên Team
+
                                 char *token = strtok(temp_buf, "|");
+
                                 if (token) {
+
                                     strncpy(team_name, token, sizeof(team_name)-1);
+
                                     team_name[sizeof(team_name)-1] = '\0';
+
                                     
+
                                     // Các token tiếp theo là thành viên
+
                                     token = strtok(NULL, "|");
+
                                     while(token) {
+
                                         // Người đầu tiên là Captain
+
                                         if (member_count == 0) {
+
                                             strncpy(captain, token, sizeof(captain)-1);
+
                                             captain[sizeof(captain)-1] = '\0';
+
                                         }
+
                                         
+
                                         // Nối vào danh sách thành viên
+
                                         strncat(members_list, token, sizeof(members_list) - strlen(members_list) - 1);
+
                                         strncat(members_list, "\n", sizeof(members_list) - strlen(members_list) - 1);
+
                                         
+
                                         member_count++;
+
                                         token = strtok(NULL, "|");
+
                                     }
                                 }
+
                             }
+
                         } else {
-                            // Không có team hoặc lỗi -> Reset về mặc định
+
                             strcpy(team_name, "(No team)");
+
                             member_count = 0;
+
                             members_list[0] = '\0';
+
                         }
+                
+                // Get HP and Armor (if in match)
+                if (send_line(sock, "GETARMOR") >= 0 && recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    int code_tmp, slot1_type, slot1_value, slot2_type, slot2_value;
+                    if (sscanf(recvbuf, "%d %d %d %d %d", &code_tmp, &slot1_type, &slot1_value, &slot2_type, &slot2_value) == 5) {
+                        current_armor = slot1_value + slot2_value;
                     }
                 }
-
-                // 3. HIỂN THỊ MENU
-                int home_sel = home_menu_ncurses(current_username, current_coin, team_name, current_hp, current_armor);
                 
-                // 4. XỬ LÝ LỰA CHỌN
-                if (home_sel == -1 || home_sel == 6) { // Back
-                    break; 
+                // Note: HP requires a GET_HP command or similar (not implemented yet)
+                // For now, HP will show as "--"
+                
+                int home_sel = home_menu_ncurses(current_username, current_coin, current_team, current_hp, current_armor);
+                if (home_sel == -1 || home_sel == 6) {
+                    break; // Back or cancelled
                 }
                 
-                // 0. Create Team
                 if (home_sel == 0) {
-                    char t_name[128];
-                    if (home_create_team_ncurses(t_name, sizeof(t_name))) {
-                        snprintf(cmd, sizeof(cmd), "CREATE_TEAM %s", t_name);
+                    // Create Team
+                    char team_name[128];
+                    if (home_create_team_ncurses(team_name, sizeof(team_name))) {
+                        snprintf(cmd, sizeof(cmd), "CREATE_TEAM %s", team_name);
                         if (send_line(sock, cmd) < 0) break;
                         if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
                             char pretty[1024];
@@ -1064,12 +1120,11 @@ int main(int argc, char *argv[]) {
                             show_message_ncurses("Create Team", pretty);
                         }
                     }
-                } 
-                // 1. Join Team (Request)
-                else if (home_sel == 1) {
-                    char t_name[128];
-                    if (home_join_team_ncurses(t_name, sizeof(t_name))) {
-                        snprintf(cmd, sizeof(cmd), "JOIN_REQUEST %s", t_name);
+                } else if (home_sel == 1) {
+                    // Join Team Request
+                    char team_name[128];
+                    if (home_join_team_ncurses(team_name, sizeof(team_name))) {
+                        snprintf(cmd, sizeof(cmd), "JOIN_REQUEST %s", team_name);
                         if (send_line(sock, cmd) < 0) break;
                         if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
                             char pretty[1024];
@@ -1077,21 +1132,21 @@ int main(int argc, char *argv[]) {
                             show_message_ncurses("Join Request", pretty);
                         }
                     }
-                } 
-                // 2. List All Teams
-                else if (home_sel == 2) {
+                } else if (home_sel == 2) {
+                    // List All Teams
                     if (send_line(sock, "LIST_TEAMS") < 0) break;
                     if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
                         char *payload = strchr(recvbuf, ' ');
                         if (payload) {
-                            show_message_ncurses("Team List", payload + 1); 
+                            show_message_ncurses("Team List", payload + 1);
                         } else {
-                            show_message_ncurses("Team List", "No active teams.");
+                            show_message_ncurses("Team List", "(Empty)");
                         }
                     }
-                } 
-                // 3. View My Invites
-                else if (home_sel == 3) {
+                } else if (home_sel == 3) {
+                    // View Invites - need to fetch invites first
+                    // Assuming there's a command to get pending invites (e.g., GET_INVITES)
+                    // For now, use a placeholder
                     if (send_line(sock, "CHECK_INVITES") < 0) break;
                     if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
                         char *payload = strchr(recvbuf, ' ');
@@ -1101,14 +1156,20 @@ int main(int argc, char *argv[]) {
                             int inv_result = home_view_invites_ncurses(payload + 1, team_name_selected, sizeof(team_name_selected), &action);
                             
                             if (inv_result == 1) {
-                                if (action == 1) snprintf(cmd, sizeof(cmd), "INVITE_ACCEPT %s", team_name_selected);
-                                else snprintf(cmd, sizeof(cmd), "INVITE_REJECT %s", team_name_selected);
+                                // Action taken
+                                if (action == 1) {
+                                    // Accept
+                                    snprintf(cmd, sizeof(cmd), "INVITE_ACCEPT %s", team_name_selected);
+                                } else {
+                                    // Reject
+                                    snprintf(cmd, sizeof(cmd), "INVITE_REJECT %s", team_name_selected);
+                                }
                                 
                                 if (send_line(sock, cmd) < 0) break;
                                 if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
                                     char pretty[1024];
                                     beautify_result(recvbuf, pretty, sizeof(pretty));
-                                    show_message_ncurses(action == 1 ? "Accept Result" : "Reject Result", pretty);
+                                    show_message_ncurses(action == 1 ? "Accept Invite" : "Reject Invite", pretty);
                                 }
                             }
                         } else {
@@ -1116,15 +1177,23 @@ int main(int argc, char *argv[]) {
                         }
                     }
                 }
-                // 4. Team Members
+
                 else if (home_sel == 4) {
+
                     if (strlen(members_list) > 0) {
+
                          char display_msg[2048];
+
                          snprintf(display_msg, sizeof(display_msg), "Team: %s\nCaptain: %s\n\nMembers:\n%s", team_name, captain, members_list);
+
                          show_message_ncurses("Team Members", display_msg);
+
                     } else {
+
                          show_message_ncurses("Team Members", "You are not in a team.");
+
                     }
+
                 }
 #else
                 printf("Home menu is only available with ncurses.\n");
@@ -1132,7 +1201,7 @@ int main(int argc, char *argv[]) {
                 break;
             }
             
-case FUNC_TEAM_MENU: {
+            case FUNC_TEAM_MENU: {
 #ifdef USE_NCURSES
     int team_id = 1;
     char team_name[128] = "My Team";
