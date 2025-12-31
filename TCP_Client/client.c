@@ -345,9 +345,19 @@ int main(int argc, char *argv[]) {
                 snprintf(cmd, sizeof(cmd), "GET_MATCH_RESULT %d", match_id);
                 if (send_line(sock, cmd) < 0) break;
                 if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
-                     char pretty[1024];
-                     beautify_result(recvbuf, pretty, sizeof(pretty));
-                     printf("%s", pretty);
+                    // Expect: 143 <match_id> <winner_team_id> on success
+                    int code = 0, recv_match_id = 0, winner_team_id = 0;
+                    if (sscanf(recvbuf, "%d %d %d", &code, &recv_match_id, &winner_team_id) == 3 && code == RESP_MATCH_RESULT_OK) {
+                        if (winner_team_id == -1) {
+                            printf("Match %d finished. Result: Draw.\n", recv_match_id);
+                        } else {
+                            printf("Match %d finished. Winner: Team %d.\n", recv_match_id, winner_team_id);
+                        }
+                    } else {
+                        char pretty[1024];
+                        beautify_result(recvbuf, pretty, sizeof(pretty));
+                        printf("%s", pretty);
+                    }
                 }
                 break;
             }

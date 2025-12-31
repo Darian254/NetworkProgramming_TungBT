@@ -236,6 +236,7 @@ static const ResponseMessage RESPONSE_MESSAGES[] = {
     /* Authentication errors */
     {RESP_START_MATCH_OK,    "Match started successfully."},
     {RESP_MATCH_RESULT_OK,   "Match result retrieved successfully."},
+    {RESP_END_MATCH_OK,        "Match ended successfully."},
     
     /* Authentication errors */
     {RESP_NOT_CREATOR,       "You are not the team creator."},

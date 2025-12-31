@@ -61,7 +61,7 @@ void displayMenu() {
 #ifdef USE_NCURSES
 #include <ncurses.h>
 
-static void get_input_field(WINDOW *win, int y, int x, char *buffer, size_t size, int echo) {
+static void get_input_field(WINDOW 6*win, int y, int x, char *buffer, size_t size, int echo) {
     int pos = 0;
     int ch;
     

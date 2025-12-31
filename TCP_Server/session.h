@@ -226,6 +226,21 @@ int server_handle_start_match(ServerSession *session, int opponent_team_id);
  */
 int server_handle_get_match_result(ServerSession *session, int match_id);
 
+/**
+ * @brief Handle END_MATCH command - validates and ends a running match
+ *
+ * @param session Current session (must belong to one of the match's teams)
+ * @param match_id Match ID to end
+ * @return Response code:
+ *   - RESP_MATCH_NOT_FOUND (414): Match not found
+ *   - RESP_MATCH_NOT_RUNNING (415): Match is not running
+ *   - RESP_NOT_IN_TEAM (317): User has no team
+ *   - RESP_NOT_AUTHORIZED (318): User is not part of the match
+ *   - RESP_MATCH_CANNOT_END (416): Match cannot end yet (both teams still have alive ships)
+ *   - RESP_END_MATCH_OK (140): Match ended successfully
+ */
+int server_handle_end_match(ServerSession *session, int match_id);
+
 
 
 void process_fire_request(int attacker_id, int target_id, int weapon_id);

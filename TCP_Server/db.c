@@ -29,12 +29,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <pthread.h>
-
-/* ============================================================================
- * MUTEXES
- * ============================================================================ */
-pthread_mutex_t team_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /* ============================================================================
  * IN-MEMORY STORAGE
@@ -390,17 +384,16 @@ Ship* find_ship(int match_id, const char *username) {
 //     return ship;
 // }
 
-// void delete_ships_by_match(int match_id) {
-//     for (int i = ship_count - 1; i >= 0; i--) {
-//         if (ships[i].match_id == match_id) {
-
-//             for (int j = i; j < ship_count - 1; j++) {
-//                 ships[j] = ships[j + 1];
-//             }
-//             ship_count--;
-//         }
-//     }
-// }
+void delete_ships_by_match(int match_id) {
+    for (int i = ship_count - 1; i >= 0; i--) {
+        if (ships[i].match_id == match_id) {
+            for (int j = i; j < ship_count - 1; j++) {
+                ships[j] = ships[j + 1];
+            }
+            ship_count--;
+        }
+    }
+}
 
 // /**
 //  * Apply damage to ship
@@ -597,15 +590,69 @@ Match* create_match(int team1_id, int team2_id) {
     return match;  // Return the new match pointer
 }
 
-// void end_match(int match_id, int winner_team_id) {
-//     Match *match = find_match_by_id(match_id);
-//     if (!match) return;
+void end_match(int match_id, int winner_team_id) {
+    Match *match = find_match_by_id(match_id);
+    if (!match) return;
     
-//     match->status = MATCH_FINISHED;
-//     match->winner_team_id = winner_team_id;
-//     match->duration = (int)(time(NULL) - match->started_at);
+    match->status = MATCH_FINISHED;
+    match->winner_team_id = winner_team_id;
+    match->duration = (int)(time(NULL) - match->started_at);
     
-//     // Delete all ships for this match
-//     delete_ships_by_match(match_id);
-// }
+    // Delete all ships for this match
+    delete_ships_by_match(match_id);
+}
+
+bool can_end_match(int match_id, int *winner_team_id) {
+    Match *match = find_match_by_id(match_id);
+    if (!match) return false;
+
+    int team1_alive = 0;
+    int team2_alive = 0;
+
+    // Count alive ships per team for this match
+    for (int i = 0; i < ship_count; i++) {
+        if (ships[i].match_id != match_id) continue;
+
+        // Resolve team of this ship via team_members
+        int ship_team_id = -1;
+        for (int tm = 0; tm < team_member_count; tm++) {
+            if (team_members[tm].user_id == ships[i].player_id) {
+                ship_team_id = team_members[tm].team_id;
+                break;
+            }
+        }
+
+        if (ship_team_id == match->team1_id) {
+            if (ships[i].hp > 0) team1_alive++;
+        } else if (ship_team_id == match->team2_id) {
+            if (ships[i].hp > 0) team2_alive++;
+        }
+    }
+
+    // Determine if match can be ended and winner
+    if (team1_alive == 0 && team2_alive == 0) {
+        if (winner_team_id) // Check if pointer is not NULL
+            *winner_team_id = -1; // draw
+        return true;
+    }
+    if (team1_alive == 0 && team2_alive >= 0) {
+        if (winner_team_id) *winner_team_id = match->team2_id;
+        return true;
+    }
+    if (team2_alive == 0 && team1_alive >= 0) {
+        if (winner_team_id) *winner_team_id = match->team1_id;
+        return true;
+    }
+
+    return false; // Both teams still have alive ships
+}
+
+int get_match_result(int match_id) {
+    Match *match = find_match_by_id(match_id);
+    if (!match) return -2; // Not found
+    return match->winner_team_id;
+}
+
+
+
 
