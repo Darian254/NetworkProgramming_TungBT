@@ -56,6 +56,8 @@ void displayMenu() {
     printf("34. Login / Register Menu\n");
     printf("35. View Match Info\n");
     printf("36. Shop Menu\n");
+    printf("37. Buy Weapon\n");
+    printf("38. Get Weapon Info\n");
     printf("==================================\n");
     printf("Select an option: ");
 }

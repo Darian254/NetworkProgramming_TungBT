@@ -65,7 +65,9 @@ typedef enum {
     // Authentication menu
     FUNC_AUTHENTICATION_MENU = 34,    /**< Authentication menu */
     FUNC_MATCH_INFO = 35,        /**< View detailed match information */
-    FUNC_SHOP_MENU = 36        /**< Shop menu */
+    FUNC_SHOP_MENU = 36,        /**< Shop menu */
+    FUNC_BUY_WEAPON = 37,     /**< Buy weapon */
+    FUNC_GET_WEAPON = 38,     /**< Get weapon info */
 
 } FunctionId;
 

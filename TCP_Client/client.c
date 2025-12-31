@@ -316,6 +316,57 @@ int main(int argc, char *argv[]) {
                 break;
             }
 
+            case FUNC_BUY_WEAPON: {
+                printf("=== Weapon Shop ===\n");
+                printf("1. Cannon Ammo (500 coin, +50 ammo)\n");
+                printf("2. Laser (1500 coin, +1 laser, max 5)\n");
+                printf("3. Missile (3000 coin, +1 missile, max 3)\n");
+                printf("0. Cancel\n");
+                printf("Select weapon type: "); fflush(stdout);
+                
+                char weapon_choice[16];
+                safeInput(weapon_choice, sizeof(weapon_choice));
+                int weapon_type = atoi(weapon_choice);
+                
+                if (weapon_type == 0) { printf("Purchase cancelled.\n"); continue; }
+                if (weapon_type < 1 || weapon_type > 3) { printf("Invalid weapon type.\n"); continue; }
+                
+                // Map to server WeaponType enum
+                int server_weapon_type = weapon_type - 1;
+                
+                snprintf(cmd, sizeof(cmd), "BUY_WEAPON %d", server_weapon_type);
+                if (send_line(sock, cmd) < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                     char pretty[1024];
+                     beautify_result(recvbuf, pretty, sizeof(pretty));
+                     printf("%s", pretty);
+                }
+                break;
+            }
+
+            case FUNC_GET_WEAPON: {
+                if (send_line(sock, "GET_WEAPON") < 0) {
+                    perror("send() error");
+                    break;
+                }
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    int code;
+                    int cannon_ammo = 0, laser_count = 0, missile_count = 0;
+                    if (sscanf(recvbuf, "%d %d %d %d", &code, &cannon_ammo, &laser_count, &missile_count) == 4
+                        && code == RESP_MATCH_INFO_OK) {
+                        printf("=== Your Ship Weapons ===\n");
+                        printf("Cannon Ammo: %d\n", cannon_ammo);
+                        printf("Laser Count: %d\n", laser_count);
+                        printf("Missile Count: %d\n", missile_count);
+                    } else {
+                        char pretty[1024];
+                        beautify_result(recvbuf, pretty, sizeof(pretty));
+                        printf("%s", pretty);
+                    }
+                }
+                break;
+            }
+
             case FUNC_START_MATCH: {
                 printf("Enter opponent team ID to start match: "); fflush(stdout);
                 char team_id_str[16];
