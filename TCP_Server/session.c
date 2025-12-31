@@ -330,36 +330,36 @@ int server_handle_start_match(ServerSession *session, int opponent_team_id) {
     return RESP_START_MATCH_OK;
 }
 
-int server_handle_end_match(ServerSession *session) {
-    if (!session) return RESP_SYNTAX_ERROR;
-    if (!session->isLoggedIn) return RESP_NOT_LOGGED;
+// int server_handle_end_match(ServerSession *session) {
+//     if (!session) return RESP_SYNTAX_ERROR;
+//     if (!session->isLoggedIn) return RESP_NOT_LOGGED;
     
-    int match_id = session->current_match_id;
-    if (match_id <= 0) {
-        return RESP_NOT_IN_MATCH;
-    }
+//     int match_id = session->current_match_id;
+//     if (match_id <= 0) {
+//         return RESP_NOT_IN_MATCH;
+//     }
     
-    Match *match = find_match_by_id(match_id);
-    if (!match) {
-        return RESP_MATCH_NOT_FOUND;
-    }
+//     Match *match = find_match_by_id(match_id);
+//     if (!match) {
+//         return RESP_MATCH_NOT_FOUND;
+//     }
     
-    // Verify user is in this match (either team1 or team2)
-    int user_team_id = session->current_team_id;
-    if (user_team_id <= 0) {
-        return RESP_NOT_IN_TEAM;
-    }
+//     // Verify user is in this match (either team1 or team2)
+//     int user_team_id = session->current_team_id;
+//     if (user_team_id <= 0) {
+//         return RESP_NOT_IN_TEAM;
+//     }
     
-    if (user_team_id != match->team1_id && user_team_id != match->team2_id) {
-        return RESP_NOT_AUTHORIZED;
-    }
+//     if (user_team_id != match->team1_id && user_team_id != match->team2_id) {
+//         return RESP_NOT_AUTHORIZED;
+//     }
     
-    // End the match
-    end_match(match_id);
-    update_session_by_socket(session->socket_fd, session);
+//     // End the match
+//     end_match(match_id);
+//     update_session_by_socket(session->socket_fd, session);
     
-    return RESP_END_MATCH_OK;
-}
+//     return RESP_END_MATCH_OK;
+// }
 
 int server_handle_get_match_result(ServerSession *session, int match_id) {
     if (!session) return RESP_SYNTAX_ERROR;
