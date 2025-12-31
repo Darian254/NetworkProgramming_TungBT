@@ -359,12 +359,30 @@ int find_available_opponent_team(int user_team_id);
 /* Match operations */
 Match* find_match_by_id(int match_id);
 Match* create_match(int team1_id, int team2_id);
-// void end_match(int match_id, int winner_team_id);
+void end_match(int match_id, int winner_team_id);
+
+/* Match evaluation helpers */
+/*
+ * Determines if a match can be ended based on ship states.
+ * If endable, sets winner_team_id to the winning team or -1 for draw.
+ * Returns true if the match can be ended, false otherwise.
+ */
+bool can_end_match(int match_id, int *winner_team_id);
+/**
+ * Retrieves the result of a match by its ID.
+ * Returns the winning team ID, or -1 for a draw.
+ * If the match does not exist, returns nothing.
+ */
+/**
+ * Get winner team id for a finished match.
+ * Returns team_id of winner, or -1 for draw, or -2 if not found.
+ */
+int get_match_result(int match_id);
 
 /* Ship operations (in-match only) */
 // Ship* find_ship(int match_id, const char *username);
 // Ship* create_ship(int match_id, const char *username);
-// void delete_ships_by_match(int match_id);
+void delete_ships_by_match(int match_id);
 // int ship_take_damage(Ship *s, int damage);
 // ResponseCode ship_buy_armor(UserTable *user_table, Ship *ship, const char *username, ArmorType type);
 ResponseCode ship_buy_weapon(UserTable *user_table, Ship *ship, const char *username, WeaponType type);

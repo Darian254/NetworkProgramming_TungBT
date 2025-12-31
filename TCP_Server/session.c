@@ -331,36 +331,52 @@ int server_handle_start_match(ServerSession *session, int opponent_team_id) {
     return RESP_START_MATCH_OK;
 }
 
-// int server_handle_end_match(ServerSession *session) {
-//     if (!session) return RESP_SYNTAX_ERROR;
-//     if (!session->isLoggedIn) return RESP_NOT_LOGGED;
-    
-//     int match_id = session->current_match_id;
-//     if (match_id <= 0) {
-//         return RESP_NOT_IN_MATCH;
-//     }
-    
-//     Match *match = find_match_by_id(match_id);
-//     if (!match) {
-//         return RESP_MATCH_NOT_FOUND;
-//     }
-    
-//     // Verify user is in this match (either team1 or team2)
-//     int user_team_id = session->current_team_id;
-//     if (user_team_id <= 0) {
-//         return RESP_NOT_IN_TEAM;
-//     }
-    
-//     if (user_team_id != match->team1_id && user_team_id != match->team2_id) {
-//         return RESP_NOT_AUTHORIZED;
-//     }
-    
-//     // End the match
-//     end_match(match_id);
-//     update_session_by_socket(session->socket_fd, session);
-    
-//     return RESP_END_MATCH_OK;
-// }
+static void clear_match_from_sessions(int match_id) {
+    SessionNode *cur = session_mgr.head;
+    while (cur) {
+        if (cur->session.current_match_id == match_id) {
+            cur->session.current_match_id = -1;
+        }
+        cur = cur->next;
+    }
+}
+
+int server_handle_end_match(ServerSession *session, int match_id) {
+    if (!session) return RESP_SYNTAX_ERROR;
+    if (!session->isLoggedIn) return RESP_NOT_LOGGED;
+    if (match_id <= 0) return RESP_SYNTAX_ERROR;
+
+    Match *match = find_match_by_id(match_id);
+    if (!match) {
+        return RESP_MATCH_NOT_FOUND;
+    }
+
+    if (match->status != MATCH_RUNNING) {
+        return RESP_MATCH_FINISHED;
+    }
+
+    int user_team_id = session->current_team_id;
+    if (user_team_id <= 0) {
+        return RESP_NOT_IN_TEAM;
+    }
+    if (user_team_id != match->team1_id && user_team_id != match->team2_id) {
+        return RESP_NOT_AUTHORIZED;
+    }
+
+    int winner_team_id = -1;
+    if (!can_end_match(match_id, &winner_team_id)) {
+        // Match cannot end yet (both teams still have alive ships)
+        return RESP_MATCH_RUNNING;
+    }
+
+    // End the match and record winner (or draw if -1)
+    end_match(match_id, winner_team_id);
+
+    // Clear match_id from all sessions participating in this match
+    clear_match_from_sessions(match_id);
+
+    return RESP_END_MATCH_OK;
+}
 
 int server_handle_get_match_result(ServerSession *session, int match_id) {
     if (!session) return RESP_SYNTAX_ERROR;

@@ -71,7 +71,7 @@ void command_routes(int client_sock, char *command) {
             // Call handler (single-threaded, no locking needed)
             response_code = server_handle_login(session, app_context_get_user_table(), username, password);
             snprintf(response, sizeof(response), "%d\r\n", response_code);
-            log_activity("LOGIN", username, false, payload, response_code);
+            log_activity("LOGIN", username, session->isLoggedIn, payload, response_code);
         }
     }
     else if (strcmp(type, "WHOAMI") == 0) {
@@ -80,17 +80,24 @@ void command_routes(int client_sock, char *command) {
         response_code = server_handle_whoami(session, username);
         if (response_code == RESP_WHOAMI_OK) {
             snprintf(response, sizeof(response), "%d %s\r\n", response_code, username);
-            log_activity("WHOAMI", username, true, payload, response_code);
+            log_activity("WHOAMI", username, session->isLoggedIn, payload, response_code);
         } else {
             snprintf(response, sizeof(response), "%d\r\n", response_code);
             log_activity("WHOAMI", NULL, false, payload, response_code);
         }
     }
     else if (strcmp(type, "BYE") == 0 || strcmp(type, "LOGOUT") == 0) {
-        // TODO: Call logout handler
+        // Preserve username before logout for accurate logging
+        char user_before[MAX_USERNAME];
+        strncpy(user_before, session->username, MAX_USERNAME - 1);
+        user_before[MAX_USERNAME - 1] = '\0';
+
+        // Call logout handler
         response_code = server_handle_bye(session);
         snprintf(response, sizeof(response), "%d\r\n", response_code);
-        log_activity("LOGOUT", session->username, true, payload, response_code);
+
+        // After logout, mark is_logged_in=false and use preserved username
+        log_activity("LOGOUT", user_before, false, payload, response_code);
     }
 
     // ========== Game Commands ==========
@@ -106,11 +113,11 @@ void command_routes(int client_sock, char *command) {
             if (user) {
                 response_code = RESP_COIN_OK;
                 snprintf(response, sizeof(response), "%d %ld\r\n", response_code, user->coin);
-                log_activity("GETCOIN", session->username, true, payload, response_code);
+                log_activity("GETCOIN", session->username, session->isLoggedIn, payload, response_code);
             } else {
                 response_code = RESP_INTERNAL_ERROR;
                 snprintf(response, sizeof(response), "%d\r\n", response_code);
-                log_activity("GETCOIN", session->username, true, payload, response_code);
+                log_activity("GETCOIN", session->username, session->isLoggedIn, payload, response_code);
             }
         }
     }
@@ -130,7 +137,7 @@ void command_routes(int client_sock, char *command) {
             if (match_id <= 0) {
                 response_code = RESP_NOT_IN_MATCH;
                 snprintf(response, sizeof(response), "%d\r\n", response_code);
-                log_activity("GETARMOR", session->username, true, payload, response_code);
+                log_activity("GETARMOR", session->username, session->isLoggedIn, payload, response_code);
             } else {
                 // TODO: Find ship and format armor info
                 Ship *ship = find_ship(match_id, session->username);
@@ -140,11 +147,11 @@ void command_routes(int client_sock, char *command) {
                              response_code,
                              ship->armor_slot_1_type, ship->armor_slot_1_value,
                              ship->armor_slot_2_type, ship->armor_slot_2_value);
-                    log_activity("GETARMOR", session->username, true, payload, response_code);
+                    log_activity("GETARMOR", session->username, session->isLoggedIn, payload, response_code);
                 } else {
                     response_code = RESP_INTERNAL_ERROR;
                     snprintf(response, sizeof(response), "%d\r\n", response_code);
-                    log_activity("GETARMOR", session->username, true, payload, response_code);
+                    log_activity("GETARMOR", session->username, session->isLoggedIn, payload, response_code);
                 }
             }
         }
@@ -160,32 +167,33 @@ void command_routes(int client_sock, char *command) {
             // Call handler (single-threaded, no locking needed)
             response_code = server_handle_buyarmor(session, app_context_get_user_table(), armor_type);
             snprintf(response, sizeof(response), "%d\r\n", response_code);
-            log_activity("BUYARMOR", session->username, true, payload, response_code);
+            log_activity("BUYARMOR", session->username, session->isLoggedIn, payload, response_code);
         }
     }
     else if (strcmp(type,"GET_MATCH_RESULT") == 0) {
         int match_id = -1;
         if (payload && sscanf(payload, "%d", &match_id) == 1 && match_id > 0) {
             response_code = server_handle_get_match_result(session, match_id);
-            log_activity("GET_MATCH_RESULT", session->username, true, payload, response_code);
         } else {
             response_code = RESP_SYNTAX_ERROR;
-            log_activity("GET_MATCH_RESULT", session->username, true, payload, response_code);
         }
-        snprintf(response, sizeof(response), "%d\r\n", response_code);
-        log_activity("GET_MATCH_RESULT", session->username, true, payload, response_code);
+        if (response_code == RESP_MATCH_RESULT_OK) {
+            int winner = get_match_result(match_id);
+            snprintf(response, sizeof(response), "%d %d %d\r\n", response_code, match_id, winner);
+        } else {
+            snprintf(response, sizeof(response), "%d\r\n", response_code);
+        }
+        log_activity("GET_MATCH_RESULT", session->username, session->isLoggedIn, payload, response_code);
     }
     else if (strcmp(type, "START_MATCH") == 0) {
         int opponent_team_id = -1;
         if (payload && sscanf(payload, "%d", &opponent_team_id) == 1 && opponent_team_id > 0) {
             response_code = server_handle_start_match(session, opponent_team_id);
-            log_activity("START_MATCH", session->username, true, payload, response_code);
         } else {
             response_code = RESP_SYNTAX_ERROR;
-            log_activity("START_MATCH", session->username, true, payload, response_code);
         }
         snprintf(response, sizeof(response), "%d\r\n", response_code);
-        log_activity("START_MATCH", session->username, true, payload, response_code);
+        log_activity("START_MATCH", session->username, session->isLoggedIn, payload, response_code);
     }
 
     // ========== Team/Challenge Commands (Future) ==========

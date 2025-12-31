@@ -380,13 +380,6 @@ int handle_join_approve(ServerSession *session, const char *target_username, Use
     }
 
     User *target_user = findUser(user_table, target_username);
-    printf("Debug: target_username=%s\n", target_user->username);
-    printf("Debug: target_user_id=%d\n", hashFunc(target_user->username));
-    printf("Debug: team_id=%d\n", team->team_id);
-    printf("Debug: team_creator=%s\n", team->creator_username);
-    printf("Debug: session_username=%s\n", session->username);
-    printf("Debug: join_request_count=%d\n", join_request_count);
-    printf("Debug: team_member_count=%d\n", team_member_count);
 
     if (!target_user) return RESP_PLAYER_NOT_FOUND;
 
