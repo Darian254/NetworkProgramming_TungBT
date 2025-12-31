@@ -561,8 +561,10 @@ int main(int argc, char *argv[]) {
 
             case FUNC_REJECT_INVITE: { 
                 char team_name[128];
-                printf("Enter team name to reject invite: "); fflush(stdout); safeInput(team_name, sizeof(team_name));
-                
+                printf("Enter team name to reject invite: "); fflush(stdout);
+                safeInput(team_name, sizeof(team_name));
+                if (strlen(team_name) == 0) break;
+
                 snprintf(cmd, sizeof(cmd), "INVITE_REJECT %s", team_name);
                 if (send_line(sock, cmd) < 0) break;
                 if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
@@ -794,6 +796,48 @@ int main(int argc, char *argv[]) {
                     beautify_result(recvbuf, pretty, sizeof(pretty));
                     printf("%s", pretty);
                 }
+                break;
+            }
+
+            case FUNC_SHOP_MENU: {
+#ifdef USE_NCURSES
+                int shop_sel = shop_menu_ncurses();
+                if (shop_sel == -1) {
+                    break;
+                }
+                if (shop_sel == 0) {
+                    // Buy Armor flow
+                    // Fetch current coin from server
+                    int coin = -1;
+                    if (send_line(sock, "GETCOIN") >= 0 && recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                        int code_tmp = 0;
+                        int coin_tmp = -1;
+                        if (sscanf(recvbuf, "%d %d", &code_tmp, &coin_tmp) == 2) {
+                            coin = coin_tmp;
+                        }
+                    }
+                    int armor_sel = shop_armor_menu_ncurses(coin);
+                    if (armor_sel == -1) break; // cancelled
+                    int armor_type = (armor_sel == 0) ? 1 : 2; // 1 BASIC, 2 ENHANCED
+                } else if (shop_sel == 1) {
+                    // Buy Weapon flow
+                    // Fetch current coin from server
+                    int coin = -1;
+                    if (send_line(sock, "GETCOIN") >= 0 && recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                        int code_tmp = 0;
+                        int coin_tmp = -1;
+                        if (sscanf(recvbuf, "%d %d", &code_tmp, &coin_tmp) == 2) {
+                            coin = coin_tmp;
+                        }
+                    }
+                    int weapon_sel = shop_weapon_menu_ncurses(coin);
+                    if (weapon_sel == -1) break; // cancelled
+                    // Map: 0=CANNON, 1=LASER, 2=MISSILE (matches server WeaponType)
+                    int weapon_type = weapon_sel;
+                }
+#else
+                printf("Shop menu is only available with ncurses.\n");
+#endif
                 break;
             }
             

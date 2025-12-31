@@ -55,12 +55,15 @@ void displayMenu() {
     printf("33. test5/6: Accept invite to team DEF\n");
     printf("34. Login / Register Menu\n");
     printf("35. View Match Info\n");
+    printf("36. Shop Menu\n");
     printf("==================================\n");
     printf("Select an option: ");
 }
 
 #ifdef USE_NCURSES
 #include <ncurses.h>
+// Use item price/value constants from server schema for consistency
+#include "../TCP_Server/db_schema.h"
 
 static void get_input_field(WINDOW *win, int y, int x, char *buffer, size_t size, int echo) {
     int pos = 0;
@@ -359,7 +362,7 @@ int display_menu_ncurses(void) {
     int max_y, max_x;
     getmaxyx(stdscr, max_y, max_x);
     
-    int win_h = 45;
+    int win_h = 48;
     int win_w = 75;
     
     if (win_h > max_y - 2) win_h = max_y - 2;
@@ -423,8 +426,11 @@ int display_menu_ncurses(void) {
     y++;
     mvwprintw(win, y++, 2, " [MATCH INFO]");
     mvwprintw(win, y++, 2, "35. View Match Info");
+    y++;
+    mvwprintw(win, y++, 2, " [SHOP]");
+    mvwprintw(win, y++, 2, "36. Shop Menu");
     
-    mvwprintw(win, win_h - 2, 2, "Enter option number (0-35) or ESC to exit: ");
+    mvwprintw(win, win_h - 2, 2, "Enter option number (0-36) or ESC to exit: ");
     
     wrefresh(win);
     
@@ -446,11 +452,11 @@ int display_menu_ncurses(void) {
             if (pos > 0) {
                 input[pos] = '\0';
                 int choice = atoi(input);
-                if (choice >= 0 && choice <= 35) {
+                if (choice >= 0 && choice <= 36) {
                     result = choice;
                     break;
                 } else {
-                    mvwprintw(win, win_h - 1, 2, "Invalid option! Enter 0-35: ");
+                    mvwprintw(win, win_h - 1, 2, "Invalid option! Enter 0-36: ");
                     wclrtoeol(win);
                     wmove(win, win_h - 2, input_x);
                     pos = 0;
@@ -589,6 +595,240 @@ int login_register_menu_ncurses(void) {
     refresh();
     endwin();
     
+    return result;
+}
+
+// Shop main menu: choose Buy Armor or Buy Weapon
+int shop_menu_ncurses(void) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(0);
+    erase();
+    refresh();
+
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+
+    int win_h = 12;
+    int win_w = 60;
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    keypad(win, TRUE);
+    box(win, 0, 0);
+
+    mvwprintw(win, 1, (win_w - 9) / 2, "SHOP MENU");
+
+    int selected = 0; // 0 = Buy Armor, 1 = Buy Weapon
+    int result = -1;
+
+    while (1) {
+        // Clear area
+        for (int i = 3; i < 8; i++) {
+            for (int j = 2; j < win_w - 2; j++) {
+                mvwaddch(win, i, j, ' ');
+            }
+        }
+
+        // Buy Armor button (left)
+        int armor_x = 8, armor_y = 5, armor_w = 18, armor_h = 3;
+        if (selected == 0) wattron(win, A_REVERSE);
+        for (int i = 0; i < armor_h; i++) {
+            for (int j = 0; j < armor_w; j++) {
+                mvwaddch(win, armor_y + i, armor_x + j, ' ');
+            }
+        }
+        mvwprintw(win, armor_y + 1, armor_x + (armor_w - 10) / 2, "BUY ARMOR");
+        if (selected == 0) wattroff(win, A_REVERSE);
+
+        // Buy Weapon button (right)
+        int weapon_x = 34, weapon_y = 5, weapon_w = 18, weapon_h = 3;
+        if (selected == 1) wattron(win, A_REVERSE);
+        for (int i = 0; i < weapon_h; i++) {
+            for (int j = 0; j < weapon_w; j++) {
+                mvwaddch(win, weapon_y + i, weapon_x + j, ' ');
+            }
+        }
+        mvwprintw(win, weapon_y + 1, weapon_x + (weapon_w - 11) / 2, "BUY WEAPON");
+        if (selected == 1) wattroff(win, A_REVERSE);
+
+        // Instructions
+        mvwprintw(win, 9, (win_w - 40) / 2, "Arrow: Select | Enter: Confirm | ESC: Back");
+        wrefresh(win);
+
+        int ch = wgetch(win);
+        if (ch == KEY_LEFT || ch == KEY_RIGHT) {
+            selected = 1 - selected;
+        } else if (ch == '\n' || ch == KEY_ENTER) {
+            result = selected; // 0 = Buy Armor, 1 = Buy Weapon
+            break;
+        } else if (ch == 27) { // ESC
+            result = -1;
+            break;
+        } else if (ch == 'a' || ch == 'A') {
+            result = 0;
+            break;
+        } else if (ch == 'w' || ch == 'W') {
+            result = 1;
+            break;
+        }
+    }
+
+    delwin(win);
+    clear();
+    refresh();
+    endwin();
+    return result;
+}
+
+// Armor selection: show types and prices
+int shop_armor_menu_ncurses(int coin) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(0);
+    erase();
+    refresh();
+
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+
+    int win_h = 14;
+    int win_w = 60;
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    keypad(win, TRUE);
+    box(win, 0, 0);
+
+    mvwprintw(win, 1, (win_w - 17) / 2, "BUY ARMOR (SHOP)");
+    // Show coin at upper-right corner
+    char coin_str[32];
+    snprintf(coin_str, sizeof(coin_str), "Coin: %d", coin);
+    int coin_x = win_w - 2 - (int)strlen(coin_str);
+    if (coin_x < 2) coin_x = 2;
+    mvwprintw(win, 1, coin_x, "%s", coin_str);
+
+    // Info lines
+    mvwprintw(win, 3, 2, "Available Armor Types:");
+    mvwprintw(win, 5, 4, "1) BASIC   - Price: %d, Armor: %d", ARMOR_BASIC_PRICE, ARMOR_BASIC_VALUE);
+    mvwprintw(win, 6, 4, "2) ENHANCED- Price: %d, Armor: %d", ARMOR_ENHANCED_PRICE, ARMOR_ENHANCED_VALUE);
+    mvwprintw(win, 8, 2, "Use Up/Down to select, Enter to confirm, ESC to cancel.");
+
+    int selected = 0; // 0 = BASIC, 1 = ENHANCED
+
+    // Draw selection markers
+    while (1) {
+        // Clear selection markers
+        mvwprintw(win, 5, 2, " ");
+        mvwprintw(win, 6, 2, " ");
+        // Mark selected
+        mvwprintw(win, selected == 0 ? 5 : 6, 2, ">");
+        wrefresh(win);
+
+        int ch = wgetch(win);
+        if (ch == KEY_UP || ch == 'k' || ch == 'K') {
+            selected = 0;
+        } else if (ch == KEY_DOWN || ch == 'j' || ch == 'J') {
+            selected = 1;
+        } else if (ch == '\n' || ch == KEY_ENTER) {
+            break;
+        } else if (ch == 27) { // ESC
+            selected = -1;
+            break;
+        } else if (ch == '1') {
+            selected = 0;
+            break;
+        } else if (ch == '2') {
+            selected = 1;
+            break;
+        }
+    }
+
+    int result = selected; // -1 for cancel, 0 BASIC, 1 ENHANCED
+    delwin(win);
+    clear();
+    refresh();
+    endwin();
+    return result;
+}
+
+// Weapon selection: show types and prices/details
+int shop_weapon_menu_ncurses(int coin) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(0);
+    erase();
+    refresh();
+
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+
+    int win_h = 16;
+    int win_w = 64;
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    keypad(win, TRUE);
+    box(win, 0, 0);
+
+    mvwprintw(win, 1, (win_w - 18) / 2, "BUY WEAPON (SHOP)");
+    // Show coin at upper-right corner
+    char coin_str[32];
+    snprintf(coin_str, sizeof(coin_str), "Coin: %d", coin);
+    int coin_x = win_w - 2 - (int)strlen(coin_str);
+    if (coin_x < 2) coin_x = 2;
+    mvwprintw(win, 1, coin_x, "%s", coin_str);
+    mvwprintw(win, 3, 2, "Available Weapon Types:");
+    mvwprintw(win, 5, 4, "1) CANNON AMMO  - Price: %d per %d ammo", CANNON_AMMO_PRICE, CANNON_AMMO_PER_PURCHASE);
+    mvwprintw(win, 6, 4, "2) LASER        - Price: %d", LASER_PRICE);
+    mvwprintw(win, 7, 4, "3) MISSILE      - Price: %d", MISSILE_PRICE);
+    mvwprintw(win, 9, 2, "Use Up/Down to select, Enter to confirm, ESC to cancel.");
+
+    int selected = 0; // 0 = CANNON, 1 = LASER, 2 = MISSILE
+
+    while (1) {
+        // Clear markers
+        mvwprintw(win, 5, 2, " ");
+        mvwprintw(win, 6, 2, " ");
+        mvwprintw(win, 7, 2, " ");
+        // Mark
+        int mark_y = selected == 0 ? 5 : (selected == 1 ? 6 : 7);
+        mvwprintw(win, mark_y, 2, ">");
+        wrefresh(win);
+
+        int ch = wgetch(win);
+        if (ch == KEY_UP || ch == 'k' || ch == 'K') {
+            if (selected > 0) selected--;
+        } else if (ch == KEY_DOWN || ch == 'j' || ch == 'J') {
+            if (selected < 2) selected++;
+        } else if (ch == '\n' || ch == KEY_ENTER) {
+            break;
+        } else if (ch == 27) { // ESC
+            selected = -1;
+            break;
+        } else if (ch == '1') {
+            selected = 0; break;
+        } else if (ch == '2') {
+            selected = 1; break;
+        } else if (ch == '3') {
+            selected = 2; break;
+        }
+    }
+
+    int result = selected; // -1 cancel, 0 cannon, 1 laser, 2 missile
+    delwin(win);
+    clear();
+    refresh();
+    endwin();
     return result;
 }
 

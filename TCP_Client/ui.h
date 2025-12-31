@@ -59,6 +59,26 @@ int display_menu_ncurses(void);
  * @return 0 for Register, 1 for Login, -1 if cancelled
  */
 int login_register_menu_ncurses(void);
+
+/**
+ * @brief Display shop main menu using ncurses.
+ * @return 0 for Buy Armor, 1 for Buy Weapon, -1 if cancelled
+ */
+int shop_menu_ncurses(void);
+
+/**
+ * @brief Display armor selection screen (types and prices).
+ * @param coin Current coin to display (upper-right)
+ * @return 0 for BASIC, 1 for ENHANCED, -1 if cancelled
+ */
+int shop_armor_menu_ncurses(int coin);
+
+/**
+ * @brief Display weapon selection screen (types).
+ * @param coin Current coin to display (upper-right)
+ * @return 0 for CANNON AMMO, 1 for LASER, 2 for MISSILE, -1 if cancelled
+ */
+int shop_weapon_menu_ncurses(int coin);
 #endif
 
 #endif
