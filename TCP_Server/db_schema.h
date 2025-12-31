@@ -39,6 +39,7 @@
 #define MAX_CHALLENGES      50
 #define MAX_MATCHES         50
 #define MAX_SHIPS           300  
+#define MAX_WEAPONS         4
 
 #define TEAM_NAME_LEN       32
 
@@ -95,6 +96,11 @@ typedef enum {
     WEAPON_MISSILE = 2
 } WeaponType;
 
+// typedef struct {
+//     char question[256];
+//     char answer[64];
+// } ChestPuzzle;
+
 typedef struct {
     int weapon_id;
     char name[30];
@@ -103,12 +109,12 @@ typedef struct {
     int ammo_capacity;
 } WeaponTemplate;
 
-// Cấu trúc Trang bị (Trạng thái động)
-typedef struct {
-    int weapon_id;      // ID
-    int slot_number;    // 1-3
-    int current_ammo;   // Số đạn
-} EquippedWeapon;
+// // Cấu trúc Trang bị (Trạng thái động)
+// typedef struct {
+//     int weapon_id;      // ID
+//     int slot_number;    // 1-3
+//     int current_ammo;   // Số đạn
+// } EquippedWeapon;
 
 // Item type
 typedef enum {
@@ -261,7 +267,6 @@ typedef struct {
     int         cannon_ammo;                    // 30mm ammo count
     int         laser_count;                    // Max 4
     int         missile_count;                  // Missile count
-    // EquippedWeapon weapons[MAX_WEAPONS];
 } Ship;
 
 typedef struct {
@@ -381,7 +386,8 @@ int get_match_result(int match_id);
 
 /* Ship operations (in-match only) */
 Ship* find_ship(int match_id, const char *username);
-// Ship* create_ship(int match_id, const char *username);
+Ship* find_ship_by_id(int ship_id);
+Ship* create_ship(int match_id, const char *username);
 void delete_ships_by_match(int match_id);
 // int ship_take_damage(Ship *s, int damage);
 // ResponseCode ship_buy_armor(UserTable *user_table, Ship *ship, const char *username, ArmorType type);
@@ -391,4 +397,13 @@ ResponseCode ship_buy_weapon(UserTable *user_table, Ship *ship, const char *user
 int get_armor_price(ArmorType type);
 int get_armor_value(ArmorType type);
 
+// Hàm hỗ trợ đội/nhóm
+int get_team_id_by_player_id(int player_id);
+
+// Hàm Game/Vũ khí
+WeaponTemplate* get_weapon_template(int weapon_id);
+
+// Hàm Thách đấu (Challenge)
+int create_challenge_record(int sender_team, int target_team);
+Challenge* find_challenge_by_id(int challenge_id);
 #endif // DB_SCHEMA_H

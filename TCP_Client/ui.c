@@ -55,6 +55,11 @@ void displayMenu() {
     printf("33. test5/6: Accept invite to team DEF\n");
     printf("34. Login / Register Menu\n");
     printf("35. View Match Info\n");
+    printf(" [GAME ACTIONS]\n");
+    printf("36. Fire (Attack)\n");
+    printf("37. Challenge Team\n");
+    printf("38. Open Chest\n");
+    printf("39. Check Match Result\n");
     printf("==================================\n");
     printf("Select an option: ");
 }
