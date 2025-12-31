@@ -68,6 +68,8 @@ typedef enum {
     FUNC_SHOP_MENU = 36,        /**< Shop menu */
     FUNC_BUY_WEAPON = 37,     /**< Buy weapon */
     FUNC_GET_WEAPON = 38,     /**< Get weapon info */
+    FUNC_HOME_MENU = 39,      /**< Home menu for team management */
+    FUNC_TEAM_MENU = 40       /**< Team menu for detailed team management */
 
 } FunctionId;
 
