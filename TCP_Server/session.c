@@ -426,7 +426,7 @@ int server_handle_get_match_result(ServerSession *session, int match_id) {
 
 
 int server_handle_fire(ServerSession *session,
-                       int target_id,
+                       char* target_name,
                        int weapon_type,
                        FireResult *result)
 {
@@ -441,7 +441,7 @@ int server_handle_fire(ServerSession *session,
         session->username
     );
 
-    Ship *target = find_ship_by_id(target_id);
+    Ship *target = find_ship_by_name(target_name);
 
     if (!attacker || !target ) {
         return RESP_INVALID_TARGET;
@@ -449,7 +449,7 @@ int server_handle_fire(ServerSession *session,
     //Lấy team của người bắn từ session
     int attacker_team_id = session->current_team_id;
     //Lấy team của mục tiêu thông qua player_id
-    int target_team_id = get_team_id_by_player_id(target->player_id);
+    int target_team_id = find_team_id_by_username(target->player_username);
     //Kiểm tra bắn đồng đội
     if (attacker_team_id == target_team_id) {
         return RESP_INVALID_TARGET; // Không bắn phe mình
@@ -546,8 +546,8 @@ int calculate_and_update_damage(Ship* attacker, Ship* target, int weapon_type, F
     }
     //Ghi kết quả
     if (out) {
-        out->attacker_id = attacker->player_id;
-        out->target_id = target->player_id;
+        out->attacker_id = hashFunc(attacker->player_username);
+        out->target_id = hashFunc(target->player_username);
         out->damage_dealt = total_damage_dealt;
         out->target_remaining_hp = target->hp;
         out->target_remaining_armor = target->armor_slot_1_value + target->armor_slot_2_value;
@@ -737,17 +737,17 @@ void send_error_response(int socket_fd, int error_code, const char *details) {
         (void)write(socket_fd, buffer, strlen(buffer));
     }
 }
-void broadcast_fire_event(int attacker_id, int target_id, int damage_dealt, int target_remaining_hp, int target_remaining_armor) {
+void broadcast_fire_event(const char* attacker_name, const char* target_name, int damage_dealt, int target_remaining_hp, int target_remaining_armor) {
     //Tìm trận đấu (match_id) dựa vào người bắn
-    Ship *attacker_ship = find_ship_by_id(attacker_id);
+    Ship *attacker_ship = find_ship_by_name(attacker_name);
     if (!attacker_ship) return;
     
     int match_id = attacker_ship->match_id;
 
     //Tạo bản tin thông báo (Protocol 131)
     char msg[512];
-    snprintf(msg, sizeof(msg), "131 FIRE_EVENT %d %d %d %d %d\r\n", 
-             attacker_id, target_id, damage_dealt, target_remaining_hp, target_remaining_armor);
+    snprintf(msg, sizeof(msg), "131 FIRE_EVENT %s %s %d %d %d\r\n", 
+             attacker_name, target_name, damage_dealt, target_remaining_hp, target_remaining_armor);
 
     // Duyệt danh sách session và gửi cho những người CÙNG TRẬN ĐẤU
     // pthread_mutex_lock(&session_mutex);

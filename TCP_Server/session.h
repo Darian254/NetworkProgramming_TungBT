@@ -246,10 +246,10 @@ int server_handle_end_match(ServerSession *session, int match_id);
 int calculate_and_update_damage(Ship* attacker, Ship* target, int weapon_id, FireResult *out);
 void send_error_response(int socket_fd, int error_code, const char *details);
 void send_fire_ok(int attacker_socket, int target_id, int damage, int hp, int armor);
-void broadcast_fire_event(int attacker_id, int target_id, int dam, int hp, int armor);
+void broadcast_fire_event(const char* attacker_name, const char* target_name, int dam, int hp, int armor);
 
 
-int server_handle_fire(ServerSession *session, int target_id, int weapon_id, FireResult *result);
+int server_handle_fire(ServerSession *session, char* target_name, int weapon_id, FireResult *result);
 
 /**
  * @brief Xử lý yêu cầu gửi lời thách đấu

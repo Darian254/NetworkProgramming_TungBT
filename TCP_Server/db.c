@@ -188,11 +188,11 @@ int get_armor_value(ArmorType type) {
     }
 }
 
-//Tìm tàu theo id
-Ship* find_ship_by_id(int target_id) {
-    // Duyệt mảng ships chính 
+//Tìm tàu theo tên người chơi
+Ship* find_ship_by_name(char* target_name) {
+    // Resolve by hashing the username; Ship stores only player_username
     for (int i = 0; i < ship_count; i++) {
-        if (ships[i].player_id == target_id) {
+        if (hashFunc(ships[i].player_username) == target_name) {
             return &ships[i];
         }
     }
@@ -213,7 +213,7 @@ Ship* find_ship_by_id(int target_id) {
 
 void update_ship_state(Ship* ship) {
     if (ship->hp == 0) {
-        printf("[DEBUG] Tàu %d đã bị phá hủy!\n", ship->player_id);
+        printf("[DEBUG] Tàu của %s đã bị phá hủy!\n", ship->player_username);
     }
 }
 
@@ -436,9 +436,9 @@ void delete_ships_by_match(int match_id) {
 // }
 
 int get_team_id_by_player_id(int player_id) {
-    // Duyệt qua danh sách thành viên để tìm user_id khớp
+    // Resolve team by hashing username instead of storing numeric user_id
     for (int i = 0; i < team_member_count; i++) {
-        if (team_members[i].user_id == player_id) {
+        if (hashFunc(team_members[i].username) == player_id) {
             return team_members[i].team_id;
         }
     }

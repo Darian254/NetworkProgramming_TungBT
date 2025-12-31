@@ -44,9 +44,9 @@ typedef enum {
     FUNC_START_MATCH = 20,       /**< Start a match */
     FUNC_GET_MATCH_RESULT = 21 ,/**< Check match result */
     FUNC_END_MATCH = 22,        /**< End current match */
-    FUNC_FIRE = 36,          /**< Bắn tàu khác */
-    FUNC_CHALLENGE = 37,     /**< Gửi lời thách đấu */
-    FUNC_OPEN_CHEST = 38,     /**< Mở rương */
+    FUNC_FIRE = 39,          /**< Bắn tàu khác */
+    FUNC_CHALLENGE = 40,     /**< Gửi lời thách đấu */
+    FUNC_OPEN_CHEST = 41,     /**< Mở rương */
     // TODO: Repair HP - fix later
     FUNC_REPAIR = 23,       /**< Repair HP */
     

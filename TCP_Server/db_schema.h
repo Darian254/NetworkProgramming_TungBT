@@ -254,7 +254,6 @@ typedef struct {
  * ============================================================================ */
 typedef struct {
     int         match_id;                       // FK -> MATCHES.match_id
-    // int         player_id;                      // FK -> USERS.user_id
     char        player_username[MAX_USERNAME];         // Username for easy lookup
     int         hp;                             // Current health points
     
@@ -388,6 +387,7 @@ int get_match_result(int match_id);
 /* Ship operations (in-match only) */
 Ship* find_ship(int match_id, const char *username);
 Ship* create_ship(int match_id, const char *username);
+Ship * find_ship_by_name(char* target_name);
 void delete_ships_by_match(int match_id);
 // int ship_take_damage(Ship *s, int damage);
 ResponseCode ship_buy_armor(UserTable *user_table, Ship *ship, const char *username, ArmorType type);
