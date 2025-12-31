@@ -10,16 +10,13 @@
 #include "config.h"
 #include "file_transfer.h"
 #include "hash.h"
-#include <pthread.h>
 #include <string.h>
 #include <stdio.h>
 
 extern Team teams[MAX_TEAMS]; 
 extern TeamMember team_members[MAX_TEAM_MEMBERS * MAX_TEAMS];
 extern UserTable *g_user_table;
-extern pthread_mutex_t team_mutex;
 extern int team_member_count;
-extern pthread_mutex_t g_user_table_mutex;
 extern JoinRequest join_requests[MAX_JOIN_REQUESTS];
 extern int join_request_count;
 extern TeamInvite team_invites[MAX_TEAM_INVITES];
@@ -58,7 +55,8 @@ int handle_create_team(ServerSession *session, UserTable *ut, const char *name) 
     
     session->current_team_id = new_team->team_id;
     update_session_by_socket(session->socket_fd, session);
-    
+    printf("[INFO] User '%s' created team '%s' (ID: %d)\n", 
+           session->username, new_team->name, new_team->team_id);
     return RESP_TEAM_CREATED;
 }
 
@@ -136,7 +134,7 @@ int handle_list_teams(ServerSession *session, char *output_buf, size_t buf_size)
         snprintf(output_buf, buf_size, "No active teams available.");
     }
     
-    return RESP_LOGIN_OK; 
+    return RESP_LIST_TEAMS_OK; 
 }
 
 /* ============================================================================
@@ -221,7 +219,6 @@ int handle_leave_team(ServerSession *session) {
     }
     
     
-    pthread_mutex_lock(&team_mutex);
     
     bool is_creator = (strcmp(team->creator_username, session->username) == 0);
     int remove_index = -1;
@@ -291,7 +288,6 @@ int handle_kick_member(ServerSession *session, const char *username) {
         return RESP_SYNTAX_ERROR;
     }
     
-    pthread_mutex_lock(&team_mutex);
     
     int index = -1;
     for (int i = 0; i < team_member_count; i++) {
@@ -347,8 +343,6 @@ int handle_join_request(ServerSession *session, const char *name) {
     }
     int user_id = hashFunc(session->username);
 
-    pthread_mutex_lock(&team_mutex);
-
     for (int i = 0; i < join_request_count; i++) {
         if (join_requests[i].team_id == team->team_id &&
             join_requests[i].user_id == user_id) { 
@@ -357,7 +351,6 @@ int handle_join_request(ServerSession *session, const char *name) {
         }
     }
 
-    // 2. Lưu Request (Lưu ID)
     if (join_request_count >= MAX_JOIN_REQUESTS) {
         return RESP_INTERNAL_ERROR;
     }
@@ -374,7 +367,7 @@ int handle_join_request(ServerSession *session, const char *name) {
 /* ============================================================================
  * JOIN APPROVE 
  * ============================================================================ */
-int handle_join_approve(ServerSession *session, const char *target_username) {
+int handle_join_approve(ServerSession *session, const char *target_username, UserTable *user_table) {
     if (!session || !target_username) return RESP_SYNTAX_ERROR;
     if (!session->isLoggedIn) return RESP_NOT_LOGGED;
 
@@ -386,7 +379,14 @@ int handle_join_approve(ServerSession *session, const char *target_username) {
         return RESP_NOT_CREATOR;
     }
 
-    User *target_user = findUser(g_user_table, target_username);
+    User *target_user = findUser(user_table, target_username);
+    printf("Debug: target_username=%s\n", target_user->username);
+    printf("Debug: target_user_id=%d\n", hashFunc(target_user->username));
+    printf("Debug: team_id=%d\n", team->team_id);
+    printf("Debug: team_creator=%s\n", team->creator_username);
+    printf("Debug: session_username=%s\n", session->username);
+    printf("Debug: join_request_count=%d\n", join_request_count);
+    printf("Debug: team_member_count=%d\n", team_member_count);
 
     if (!target_user) return RESP_PLAYER_NOT_FOUND;
 
@@ -398,23 +398,21 @@ int handle_join_approve(ServerSession *session, const char *target_username) {
     int req_index = -1;
     for (int i = 0; i < join_request_count; i++) {
         if (join_requests[i].team_id == team->team_id &&
-            join_requests[i].user_id == target_user_id) { // So sánh ID
+            join_requests[i].user_id == target_user_id) { 
             req_index = i;
             break;
         }
     }
 
     if (req_index == -1) {
-        return RESP_PLAYER_NOT_FOUND; // Không thấy đơn xin
+        return RESP_NOT_FOUND_REQUEST; 
     }
 
-    // 2. Xóa Request
     for (int i = req_index; i < join_request_count - 1; i++) {
         join_requests[i] = join_requests[i + 1];
     }
     join_request_count--;
 
-    // 3. Thêm vào Team Members (Bảng này vẫn dùng Username string)
     if (team_member_count >= MAX_TEAMS * MAX_TEAM_MEMBERS) {
         return RESP_INTERNAL_ERROR;
     }
@@ -423,11 +421,10 @@ int handle_join_approve(ServerSession *session, const char *target_username) {
     member->team_id = team->team_id;
     strncpy(member->username, target_username, MAX_USERNAME - 1);
     member->username[MAX_USERNAME - 1] = '\0';
-    member->role = 1; // Member
+    member->role = 1;
     member->joined_at = time(NULL);
     team_member_count++;
 
-    // 4. Update Session
     SessionNode *target_node = find_session_by_username(target_username);
     if (target_node != NULL) {
         target_node->session.current_team_id = team->team_id;
@@ -458,8 +455,6 @@ int handle_join_reject(ServerSession *session, const char *target_username) {
     }
     
     int target_user_id = hashFunc(target_username);
-
-    pthread_mutex_lock(&team_mutex);
     
     int req_index = -1;
     for (int i = 0; i < join_request_count; i++) {
@@ -494,7 +489,7 @@ int handle_join_reject(ServerSession *session, const char *target_username) {
 /* ============================================================================
  * INVITE
  * ============================================================================ */
-int handle_invite(ServerSession *session, const char *target_username) {
+int handle_invite(ServerSession *session, const char *target_username, UserTable *user_table) {
     if (!session || !target_username) return RESP_SYNTAX_ERROR;
     if (!session->isLoggedIn) return RESP_NOT_LOGGED;
     
@@ -511,7 +506,7 @@ int handle_invite(ServerSession *session, const char *target_username) {
     int member_count = get_team_member_count(team->team_id);
     if (member_count >= MAX_TEAM_MEMBERS) return RESP_TEAM_FULL;
     
-    User *target_user = findUser(g_user_table, target_username);
+    User *target_user = findUser(user_table, target_username);
 
     if (!target_user) return RESP_PLAYER_NOT_FOUND;
 
@@ -551,30 +546,23 @@ int handle_invite_accept(ServerSession *session, const char *name) {
     if (!session || !name) return RESP_SYNTAX_ERROR;
     if (!session->isLoggedIn) return RESP_NOT_LOGGED;
     
-    // 1. Kiểm tra user đã có team chưa
     int current_team = find_team_id_by_username(session->username);
     if (current_team > 0) return RESP_ALREADY_IN_TEAM;
     
-    // 2. Tìm team theo tên (User nhập tên team muốn vào)
     Team *team = find_team_by_name(name);
     if (!team) return RESP_TEAM_NOT_FOUND;
     
-    // Check team full
+
     if (get_team_member_count(team->team_id) >= MAX_TEAM_MEMBERS) {
         return RESP_TEAM_FULL;
     }
     
-    // 3. Tính ID của chính mình để đối chiếu
     int my_user_id = hashFunc(session->username);
 
-    // --- BẮT ĐẦU KHÓA DỮ LIỆU ---
-    pthread_mutex_lock(&team_mutex);
 
     int invite_index = -1;
 
-    // 4. Tìm lời mời khớp với ID của mình và ID của Team
     for (int i = 0; i < team_invite_count; i++) {
-        // [SỬA Ở ĐÂY]: Dùng invitee_id thay vì username
         if (team_invites[i].team_id == team->team_id &&
             team_invites[i].invitee_id == my_user_id) { 
             invite_index = i;
@@ -583,16 +571,14 @@ int handle_invite_accept(ServerSession *session, const char *name) {
     }
 
     if (invite_index == -1) {
-        return RESP_INVITE_NOT_FOUND; // Hoặc RESP_TEAM_NOT_FOUND nếu chưa định nghĩa mã mới
+        return RESP_INVITE_NOT_FOUND; 
     }
 
-    // 5. Xóa lời mời (Dọn rác)
     for (int i = invite_index; i < team_invite_count - 1; i++) {
         team_invites[i] = team_invites[i + 1];
     }
     team_invite_count--;
 
-    // 6. Thêm vào Team Members
     if (team_member_count >= MAX_TEAMS * MAX_TEAM_MEMBERS) {
         return RESP_INTERNAL_ERROR;
     }
@@ -601,10 +587,9 @@ int handle_invite_accept(ServerSession *session, const char *name) {
     member->team_id = team->team_id;
     strncpy(member->username, session->username, MAX_USERNAME - 1);
     member->username[MAX_USERNAME - 1] = '\0';
-    member->role = 1; // Member (0=Captain, 1=Member)
+    member->role = 1; 
     member->joined_at = time(NULL);
 
-    // 7. Cập nhật Session
     session->current_team_id = team->team_id;
     update_session_by_socket(session->socket_fd, session);
     
@@ -621,17 +606,11 @@ int handle_invite_reject(ServerSession *session, const char *name) {
     Team *team = find_team_by_name(name);
     if (!team) return RESP_TEAM_NOT_FOUND;
     
-    // Tính ID của chính mình
     int my_user_id = hashFunc(session->username);
-
-    // --- BẮT ĐẦU KHÓA DỮ LIỆU ---
-    pthread_mutex_lock(&team_mutex);
 
     int invite_index = -1;
 
-    // Tìm lời mời để xóa
     for (int i = 0; i < team_invite_count; i++) {
-        // [SỬA Ở ĐÂY]: Dùng invitee_id thay vì username
         if (team_invites[i].team_id == team->team_id &&
             team_invites[i].invitee_id == my_user_id) {
             invite_index = i;
@@ -640,10 +619,9 @@ int handle_invite_reject(ServerSession *session, const char *name) {
     }
 
     if (invite_index == -1) {
-        return RESP_INVITE_NOT_FOUND; // Hoặc RESP_TEAM_NOT_FOUND
+        return RESP_INVITE_NOT_FOUND; 
     }
 
-    // Xóa lời mời
     for (int i = invite_index; i < team_invite_count - 1; i++) {
         team_invites[i] = team_invites[i + 1];
     }

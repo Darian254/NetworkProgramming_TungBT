@@ -270,6 +270,23 @@ typedef struct {
 } ChestPuzzle;
 
 
+
+// Cấu trúc Vũ khí (Template - Dữ liệu tĩnh)
+typedef struct {
+    int weapon_id;
+    char name[30];
+    int damage;
+    int cost;
+    int ammo_capacity;
+} WeaponTemplate;
+
+// Cấu trúc Trang bị (Trạng thái động)
+typedef struct {
+    int weapon_id;      // ID
+    int slot_number;    // 1-3
+    int current_ammo;   // Số đạn
+} EquippedWeapon;
+
 /* ==========================================================================
  * STRUCT: RepairResult
  * Description: Output structure for ship repair operations

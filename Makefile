@@ -47,12 +47,7 @@ SERVER_OBJS = $(SERVER_DIR)/server.o \
               $(SERVER_DIR)/config.o \
               $(SERVER_DIR)/hash.o \
               $(SERVER_DIR)/db.o \
-              $(SERVER_DIR)/team_handler.o \
-              $(SERVER_DIR)/game_logic.o \
-              $(SERVER_DIR)/challenge_logic.o \
-              $(SERVER_DIR)/chest_logic.o \
-              $(SERVER_DIR)/networking.o \
-              $(SERVER_DIR)/ship_defs.o 
+              $(SERVER_DIR)/team_handler.o 
 
 .PHONY: all clean client server
 
@@ -92,7 +87,7 @@ clean:
 # Run
 # ==============================
 run_server: $(SERVER)
-	./$(SERVER) 5500
+	./$(SERVER)
 
 run_client: $(CLIENT)
 	./$(CLIENT) 127.0.0.1 5500

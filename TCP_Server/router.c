@@ -9,6 +9,7 @@
 #include "util.h"
 #include "challenge.h"  // For RESP_CHALLENGE_* constants
 #include "chest_logic.h"  // For RESP_CHEST_OPEN_OK constant
+#include "team_handler.h" // Team management handlers
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -217,74 +218,174 @@ void command_routes(int client_sock, char *command) {
     // - SEND_CHALLENGE
     // etc.
 
-    else if (strcmp(type, "FIRE") == 0) {
-        int target_id, weapon_id;
-        // Parse: FIRE <target> <weapon>
-        if (sscanf(payload, "%d %d", &target_id, &weapon_id) == 2) {
-            FireResult result;
-            memset(&result, 0, sizeof(FireResult));
+    // else if (strcmp(type, "FIRE") == 0) {
+    //     int target_id, weapon_id;
+    //     // Parse: FIRE <target> <weapon>
+    //     if (sscanf(payload, "%d %d", &target_id, &weapon_id) == 2) {
+    //         FireResult result;
+    //         memset(&result, 0, sizeof(FireResult));
             
-            // Gọi Logic (Lưu ý: session ở đây đã có sẵn từ code gốc, không cần tạo mới)
-            response_code = server_handle_fire(session, target_id, weapon_id, &result);
+    //         // Gọi Logic (Lưu ý: session ở đây đã có sẵn từ code gốc, không cần tạo mới)
+    //         response_code = server_handle_fire(session, target_id, weapon_id, &result);
             
-            if (response_code == RESP_COIN_OK) {
-                // 1. Chuẩn bị response cho người bắn (sẽ được gửi ở cuối hàm)
-                snprintf(response, sizeof(response), "131 %d %d %d %d\r\n", 
-                         result.target_id, result.damage_dealt, 
-                         result.target_remaining_hp, result.target_remaining_armor);
+    //         if (response_code == RESP_COIN_OK) {
+    //             // 1. Chuẩn bị response cho người bắn (sẽ được gửi ở cuối hàm)
+    //             snprintf(response, sizeof(response), "131 %d %d %d %d\r\n", 
+    //                      result.target_id, result.damage_dealt, 
+    //                      result.target_remaining_hp, result.target_remaining_armor);
                 
-                // 2. Broadcast cho mọi người khác (Gửi ngay lập tức)
-                broadcast_fire_event(result.attacker_id, result.target_id, result.damage_dealt, result.target_remaining_hp, result.target_remaining_armor);
-            } else {
-                // Gửi lỗi
-                snprintf(response, sizeof(response), "%d FIRE_FAIL\r\n", response_code);
-            }
-        } else {
-            snprintf(response, sizeof(response), "301 SYNTAX_ERROR\r\n");
-        }
-    }
+    //             // 2. Broadcast cho mọi người khác (Gửi ngay lập tức)
+    //             broadcast_fire_event(result.attacker_id, result.target_id, result.damage_dealt, result.target_remaining_hp, result.target_remaining_armor);
+    //         } else {
+    //             // Gửi lỗi
+    //             snprintf(response, sizeof(response), "%d FIRE_FAIL\r\n", response_code);
+    //         }
+    //     } else {
+    //         snprintf(response, sizeof(response), "301 SYNTAX_ERROR\r\n");
+    //     }
+    // }
 
-    // --- XỬ LÝ CHALLENGE (Thách đấu) ---
-    else if (strcmp(type, "SEND_CHALLENGE") == 0) {
-        int target_team = atoi(payload);
-        int cid = 0;
-        response_code = server_handle_send_challenge(session, target_team, &cid);
+    // // --- XỬ LÝ CHALLENGE (Thách đấu) ---
+    // else if (strcmp(type, "SEND_CHALLENGE") == 0) {
+    //     int target_team = atoi(payload);
+    //     int cid = 0;
+    //     response_code = server_handle_send_challenge(session, target_team, &cid);
         
-        if (response_code == RESP_CHALLENGE_SENT)
-            snprintf(response, sizeof(response), "130 CHALLENGE_SENT %d\r\n", cid);
-        else 
-            snprintf(response, sizeof(response), "%d CHALLENGE_FAIL\r\n", response_code);
+    //     if (response_code == RESP_CHALLENGE_SENT)
+    //         snprintf(response, sizeof(response), "130 CHALLENGE_SENT %d\r\n", cid);
+    //     else 
+    //         snprintf(response, sizeof(response), "%d CHALLENGE_FAIL\r\n", response_code);
+    // }
+    // else if (strcmp(type, "ACCEPT_CHALLENGE") == 0) {
+    //     int cid = atoi(payload);
+    //     response_code = server_handle_accept_challenge(session, cid);
+    //     snprintf(response, sizeof(response), "%d CHALLENGE_ACCEPTED %d\r\n", response_code, cid);
+    // }
+    // else if (strcmp(type, "DECLINE_CHALLENGE") == 0) {
+    //     int cid = atoi(payload);
+    //     response_code = server_handle_decline_challenge(session, cid);
+    //     snprintf(response, sizeof(response), "%d CHALLENGE_DECLINED %d\r\n", response_code, cid);
+    // }
+    // else if (strcmp(type, "CANCEL_CHALLENGE") == 0) {
+    //     int cid = atoi(payload);
+    //     response_code = server_handle_cancel_challenge(session, cid);
+    //     snprintf(response, sizeof(response), "%d CHALLENGE_CANCELED %d\r\n", response_code, cid);
+    // }
+
+    // // --- XỬ LÝ CHEST (Rương) ---
+    // else if (strcmp(type, "CHEST_OPEN") == 0) {
+    //     int chest_id;
+    //     char answer[128];
+    //     if (sscanf(payload, "%d %[^\n]", &chest_id, answer) == 2) {
+    //         response_code = server_handle_open_chest(session, chest_id, answer);
+            
+    //         if (response_code == RESP_CHEST_OPEN_OK)
+    //             snprintf(response, sizeof(response), "127 CHEST_OPEN_SUCCESS\r\n");
+    //         else
+    //             snprintf(response, sizeof(response), "%d CHEST_OPEN_FAIL\r\n", response_code);
+    //         log_activity("CHEST_OPEN", session->username, session->isLoggedIn, payload, response_code);
+    //     } else {
+    //         snprintf(response, sizeof(response), "301 SYNTAX_ERROR\r\n");
+    //         log_activity("CHEST_OPEN", session->username, session->isLoggedIn, payload, RESP_SYNTAX_ERROR);
+    //     }
+    // }
+
+    // ========== TEAM COMMANDS (moved from server.c) ==========
+    else if (strcmp(type, "CREATE_TEAM") == 0 || strcmp(type, "CREATETEAM") == 0) {
+        if (!payload || strlen(payload) == 0) {
+            response_code = RESP_SYNTAX_ERROR;
+        } else {
+            response_code = handle_create_team(session, app_context_get_user_table(), payload);
+        }
+        snprintf(response, sizeof(response), "%d\r\n", response_code);
+        log_activity("CREATE_TEAM", session->username, session->isLoggedIn, payload, response_code);
     }
-    else if (strcmp(type, "ACCEPT_CHALLENGE") == 0) {
-        int cid = atoi(payload);
-        response_code = server_handle_accept_challenge(session, cid);
-        snprintf(response, sizeof(response), "%d CHALLENGE_ACCEPTED %d\r\n", response_code, cid);
+    else if (strcmp(type, "DELETE_TEAM") == 0) {
+        response_code = handle_delete_team(session);
+        snprintf(response, sizeof(response), "%d\r\n", response_code);
+        log_activity("DELETE_TEAM", session->username, session->isLoggedIn, payload, response_code);
     }
-    else if (strcmp(type, "DECLINE_CHALLENGE") == 0) {
-        int cid = atoi(payload);
-        response_code = server_handle_decline_challenge(session, cid);
-        snprintf(response, sizeof(response), "%d CHALLENGE_DECLINED %d\r\n", response_code, cid);
+    else if (strcmp(type, "LIST_TEAMS") == 0) {
+        char list_buf[4096] = "";
+        response_code = handle_list_teams(session, list_buf, sizeof(list_buf));
+        if (response_code == RESP_LIST_TEAMS_OK && strlen(list_buf) > 0)
+            snprintf(response, sizeof(response), "%s\r\n", list_buf);
+        else
+            snprintf(response, sizeof(response), "%d\r\n", response_code);
+        log_activity("LIST_TEAMS", session->username, session->isLoggedIn, payload, response_code);
     }
-    else if (strcmp(type, "CANCEL_CHALLENGE") == 0) {
-        int cid = atoi(payload);
-        response_code = server_handle_cancel_challenge(session, cid);
-        snprintf(response, sizeof(response), "%d CHALLENGE_CANCELED %d\r\n", response_code, cid);
+    else if (strcmp(type, "JOIN_REQUEST") == 0) {
+        if (!payload || strlen(payload) == 0) response_code = RESP_SYNTAX_ERROR;
+        else response_code = handle_join_request(session, payload);
+        snprintf(response, sizeof(response), "%d\r\n", response_code);
+        log_activity("JOIN_REQUEST", session->username, session->isLoggedIn, payload, response_code);
+    }
+    else if (strcmp(type, "JOIN_APPROVE") == 0) {
+        if (!payload || strlen(payload) == 0) response_code = RESP_SYNTAX_ERROR;
+        else response_code = handle_join_approve(session, payload, app_context_get_user_table());
+        snprintf(response, sizeof(response), "%d\r\n", response_code);
+        log_activity("JOIN_APPROVE", session->username, session->isLoggedIn, payload, response_code);
+    }
+    else if (strcmp(type, "JOIN_REJECT") == 0) {
+        if (!payload || strlen(payload) == 0) response_code = RESP_SYNTAX_ERROR;
+        else response_code = handle_join_reject(session, payload);
+        snprintf(response, sizeof(response), "%d\r\n", response_code);
+        log_activity("JOIN_REJECT", session->username, session->isLoggedIn, payload, response_code);
+    }
+    else if (strcmp(type, "TEAM_MEMBER_LIST") == 0) {
+        char members_buf[2048] = "";
+        response_code = handle_team_member_list(session, members_buf, sizeof(members_buf));
+        if (response_code == RESP_TEAM_MEMBERS_LIST_OK)
+            snprintf(response, sizeof(response), "%d %s\r\n", response_code, members_buf);
+        else
+            snprintf(response, sizeof(response), "%d\r\n", response_code);
+        log_activity("TEAM_MEMBER_LIST", session->username, session->isLoggedIn, payload, response_code);
+    }
+    else if (strcmp(type, "LEAVE_TEAM") == 0) {
+        response_code = handle_leave_team(session);
+        snprintf(response, sizeof(response), "%d\r\n", response_code);
+        log_activity("LEAVE_TEAM", session->username, session->isLoggedIn, payload, response_code);
+    }
+    else if (strcmp(type, "KICK_MEMBER") == 0) {
+        if (!payload || strlen(payload) == 0) response_code = RESP_SYNTAX_ERROR;
+        else response_code = handle_kick_member(session, payload);
+        snprintf(response, sizeof(response), "%d\r\n", response_code);
+        log_activity("KICK_MEMBER", session->username, session->isLoggedIn, payload, response_code);
+    }
+    else if (strcmp(type, "INVITE") == 0) {
+        if (!payload || strlen(payload) == 0) response_code = RESP_SYNTAX_ERROR;
+        else response_code = handle_invite(session, payload, app_context_get_user_table());
+        snprintf(response, sizeof(response), "%d\r\n", response_code);
+        log_activity("INVITE", session->username, session->isLoggedIn, payload, response_code);
+    }
+    else if (strcmp(type, "INVITE_ACCEPT") == 0) {
+        if (!payload || strlen(payload) == 0) response_code = RESP_SYNTAX_ERROR;
+        else response_code = handle_invite_accept(session, payload);
+        snprintf(response, sizeof(response), "%d\r\n", response_code);
+        log_activity("INVITE_ACCEPT", session->username, session->isLoggedIn, payload, response_code);
+    }
+    else if (strcmp(type, "INVITE_REJECT") == 0) {
+        if (!payload || strlen(payload) == 0) response_code = RESP_SYNTAX_ERROR;
+        else response_code = handle_invite_reject(session, payload);
+        snprintf(response, sizeof(response), "%d\r\n", response_code);
+        log_activity("INVITE_REJECT", session->username, session->isLoggedIn, payload, response_code);
     }
 
-    // --- XỬ LÝ CHEST (Rương) ---
-    else if (strcmp(type, "CHEST_OPEN") == 0) {
-        int chest_id;
-        char answer[128];
-        if (sscanf(payload, "%d %[^\n]", &chest_id, answer) == 2) {
-            response_code = server_handle_open_chest(session, chest_id, answer);
-            
-            if (response_code == RESP_CHEST_OPEN_OK)
-                snprintf(response, sizeof(response), "127 CHEST_OPEN_SUCCESS\r\n");
+    // ========== REPAIR ==========
+    else if (strcmp(type, "REPAIR") == 0) {
+        int amt = -1;
+        if (payload && sscanf(payload, "%d", &amt) == 1) {
+            RepairResult repair_result = {0};
+            response_code = server_handle_repair(session, app_context_get_user_table(), amt, &repair_result);
+            if (response_code == RESP_REPAIR_OK)
+                snprintf(response, sizeof(response), "%d %d %d\r\n", response_code, repair_result.hp, repair_result.coin);
             else
-                snprintf(response, sizeof(response), "%d CHEST_OPEN_FAIL\r\n", response_code);
+                snprintf(response, sizeof(response), "%d\r\n", response_code);
         } else {
-            snprintf(response, sizeof(response), "301 SYNTAX_ERROR\r\n");
+            response_code = RESP_SYNTAX_ERROR;
+            snprintf(response, sizeof(response), "%d\r\n", response_code);
         }
+        log_activity("REPAIR", session->username, session->isLoggedIn, payload, response_code);
     }
 
     // ========== Unknown Command ==========
