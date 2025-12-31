@@ -53,6 +53,12 @@ void show_message_ncurses(const char *title, const char *message);
  * @return Selected option number (0-23) or FUNC_EXIT if cancelled
  */
 int display_menu_ncurses(void);
+
+/**
+ * @brief Display login/register selection menu using ncurses.
+ * @return 0 for Register, 1 for Login, -1 if cancelled
+ */
+int login_register_menu_ncurses(void);
 #endif
 
 #endif

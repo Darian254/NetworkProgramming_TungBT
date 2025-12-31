@@ -53,6 +53,7 @@ void displayMenu() {
     printf("31. test4: Create team DEF & invite test5,6\n");
     printf("32. test2/3: Accept invite to team ABC\n");
     printf("33. test5/6: Accept invite to team DEF\n");
+    printf("34. Login / Register Menu\n");
     printf("==================================\n");
     printf("Select an option: ");
 }
@@ -415,8 +416,11 @@ int display_menu_ncurses(void) {
     mvwprintw(win, y++, 2, "31. test4: Team DEF+invite");
     mvwprintw(win, y++, 2, "32. test2/3: Accept ABC");
     mvwprintw(win, y++, 2, "33. test5/6: Accept DEF");
+    y++;
+    mvwprintw(win, y++, 2, " [AUTHENTICATION MENU]");
+    mvwprintw(win, y++, 2, "34. Login / Register Menu");
     
-    mvwprintw(win, win_h - 2, 2, "Enter option number (0-33) or ESC to exit: ");
+    mvwprintw(win, win_h - 2, 2, "Enter option number (0-34) or ESC to exit: ");
     
     wrefresh(win);
     
@@ -438,11 +442,11 @@ int display_menu_ncurses(void) {
             if (pos > 0) {
                 input[pos] = '\0';
                 int choice = atoi(input);
-                if (choice >= 0 && choice <= 33) {
+                if (choice >= 0 && choice <= 34) {
                     result = choice;
                     break;
                 } else {
-                    mvwprintw(win, win_h - 1, 2, "Invalid option! Enter 0-33: ");
+                    mvwprintw(win, win_h - 1, 2, "Invalid option! Enter 0-34: ");
                     wclrtoeol(win);
                     wmove(win, win_h - 2, input_x);
                     pos = 0;
@@ -469,6 +473,110 @@ int display_menu_ncurses(void) {
             waddch(win, ch);
             mvwprintw(win, win_h - 1, 2, "                                    ");
             wrefresh(win);
+        }
+    }
+    
+    delwin(win);
+    clear();
+    refresh();
+    endwin();
+    
+    return result;
+}
+
+int login_register_menu_ncurses(void) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(0);
+    erase();
+    refresh();
+    
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+    
+    int win_h = 12;
+    int win_w = 60;
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+    
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    keypad(win, TRUE);
+    box(win, 0, 0);
+    
+    mvwprintw(win, 1, (win_w - 20) / 2, "LOGIN / REGISTER");
+    
+    int selected = 0;  // 0 = Login, 1 = Register
+    int result = -1;
+    
+    while (1) {
+        // Clear button area
+        for (int i = 3; i < 8; i++) {
+            for (int j = 2; j < win_w - 2; j++) {
+                mvwaddch(win, i, j, ' ');
+            }
+        }
+        
+        // Draw Login button (left)
+        int login_x = 8;
+        int login_y = 5;
+        int login_w = 18;
+        int login_h = 3;
+        
+        if (selected == 0) {
+            wattron(win, A_REVERSE);
+        }
+        for (int i = 0; i < login_h; i++) {
+            for (int j = 0; j < login_w; j++) {
+                mvwaddch(win, login_y + i, login_x + j, ' ');
+            }
+        }
+        mvwprintw(win, login_y + 1, login_x + (login_w - 5) / 2, "LOGIN");
+        if (selected == 0) {
+            wattroff(win, A_REVERSE);
+        }
+        
+        // Draw Register button (right)
+        int reg_x = 34;
+        int reg_y = 5;
+        int reg_w = 18;
+        int reg_h = 3;
+        
+        if (selected == 1) {
+            wattron(win, A_REVERSE);
+        }
+        for (int i = 0; i < reg_h; i++) {
+            for (int j = 0; j < reg_w; j++) {
+                mvwaddch(win, reg_y + i, reg_x + j, ' ');
+            }
+        }
+        mvwprintw(win, reg_y + 1, reg_x + (reg_w - 8) / 2, "REGISTER");
+        if (selected == 1) {
+            wattroff(win, A_REVERSE);
+        }
+        
+        // Instructions
+        mvwprintw(win, 9, (win_w - 40) / 2, "Arrow keys: Select | Enter: Confirm | ESC: Cancel");
+        
+        wrefresh(win);
+        
+        int ch = wgetch(win);
+        
+        if (ch == KEY_LEFT || ch == KEY_RIGHT) {
+            selected = 1 - selected;  // Toggle between 0 and 1
+        } else if (ch == '\n' || ch == KEY_ENTER) {
+            result = selected;  // 0 = Login, 1 = Register
+            break;
+        } else if (ch == 27) {  // ESC key
+            result = -1;
+            break;
+        } else if (ch == 'l' || ch == 'L') {
+            result = 0;  // Login
+            break;
+        } else if (ch == 'r' || ch == 'R') {
+            result = 1;  // Register
+            break;
         }
     }
     

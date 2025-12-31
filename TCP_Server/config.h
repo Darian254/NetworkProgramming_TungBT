@@ -60,7 +60,10 @@ typedef enum {
     FUNC_SETUP_TEAM_ABC = 30,    /**< test1: Create team abc and invite test2, test3 */
     FUNC_SETUP_TEAM_DEF = 31,    /**< test4: Create team def and invite test5, test6 */
     FUNC_ACCEPT_ABC = 32,        /**< test2/test3: Accept invite to team abc */
-    FUNC_ACCEPT_DEF = 33         /**< test5/test6: Accept invite to team def */
+    FUNC_ACCEPT_DEF = 33,         /**< test5/test6: Accept invite to team def */
+
+    // Authentication menu
+    FUNC_AUTHENTICATION_MENU = 34    /**< Authentication menu */
 
 } FunctionId;
 

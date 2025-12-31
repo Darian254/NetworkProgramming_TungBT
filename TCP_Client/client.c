@@ -698,6 +698,50 @@ int main(int argc, char *argv[]) {
                 break;
             }
             
+            // Login/Register Menu
+            case FUNC_AUTHENTICATION_MENU: {
+#ifdef USE_NCURSES
+                int menu_choice = login_register_menu_ncurses();
+                if (menu_choice == -1) {
+                    continue;  // User cancelled
+                }
+                
+                char username[128], password[128];
+                int success = 0;
+                
+                if (menu_choice == 0) {
+                    // Login selected
+                    if (login_ui_ncurses(username, sizeof(username), password, sizeof(password))) {
+                        snprintf(cmd, sizeof(cmd), "LOGIN %s %s", username, password);
+                        if (send_line(sock, cmd) < 0) {
+                            perror("send() error");
+                            break;
+                        }
+                        success = 1;
+                    }
+                } else if (menu_choice == 1) {
+                    // Register selected
+                    if (register_ui_ncurses(username, sizeof(username), password, sizeof(password))) {
+                        snprintf(cmd, sizeof(cmd), "REGISTER %s %s", username, password);
+                        if (send_line(sock, cmd) < 0) {
+                            perror("send() error");
+                            break;
+                        }
+                        success = 1;
+                    }
+                }
+                
+                if (success && recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+                    show_message_ncurses(menu_choice == 0 ? "Login Result" : "Register Result", pretty);
+                }
+#else
+                printf("Login/Register menu is only available with ncurses.\n");
+#endif
+                break;
+            }
+            
             default: {
                 printf("Invalid choice, please try again.\n");
                 break;
