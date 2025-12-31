@@ -7,6 +7,7 @@
 #include "config.h"
 #include "db_schema.h"
 #include "util.h"
+#include "team_handler.h" // Team management handlers
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -274,7 +275,17 @@ void command_routes(int client_sock, char *command) {
             snprintf(response, sizeof(response), "301 SYNTAX_ERROR\r\n");
         }
     }
-
+    //test rương
+    else if (strcmp(type, "DEBUG_CHEST") == 0) {
+        if (session->current_match_id > 0) {
+            broadcast_chest_drop(session->current_match_id); 
+            snprintf(response, sizeof(response), "200 DEBUG_DROP_OK\r\n");
+        } else {
+            snprintf(response, sizeof(response), "500 NOT_IN_MATCH\r\n");
+        }
+    }
+    
+    
     
 
     // ========== Unknown Command ==========
