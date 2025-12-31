@@ -45,6 +45,10 @@
 #define MAP_WIDTH  1000
 #define MAP_HEIGHT 1000
 
+
+#define MAX_WEAPONS 4
+#define MAX_ARMOR_SLOTS 2
+
 /* ============================================================================
  * ENUMS
  * ============================================================================ */
@@ -90,6 +94,21 @@ typedef enum {
     WEAPON_LASER = 1,
     WEAPON_MISSILE = 2
 } WeaponType;
+
+typedef struct {
+    int weapon_id;
+    char name[30];
+    int damage;
+    int cost;
+    int ammo_capacity;
+} WeaponTemplate;
+
+// Cấu trúc Trang bị (Trạng thái động)
+typedef struct {
+    int weapon_id;      // ID
+    int slot_number;    // 1-3
+    int current_ammo;   // Số đạn
+} EquippedWeapon;
 
 // Item type
 typedef enum {
@@ -239,10 +258,16 @@ typedef struct {
     int         armor_slot_2_value;
     
     // Weapons
-    int         cannon_ammo;                    // 30mm ammo count
-    int         laser_count;                    // Max 4
-    int         missile_count;                  // Missile count
+    // int         cannon_ammo;                    // 30mm ammo count
+    // int         laser_count;                    // Max 4
+    // int         missile_count;                  // Missile count
+    EquippedWeapon weapons[MAX_WEAPONS];
 } Ship;
+
+typedef struct {
+    char question[256];
+    char answer[64];
+} ChestPuzzle;
 
 
 
@@ -273,6 +298,15 @@ typedef struct {
     int coin;   /**< New coin balance after repair */
 } RepairResult;
 
+
+//Fire result
+typedef struct {
+    int attacker_id;
+    int target_id;
+    int damage_dealt;
+    int target_remaining_hp;
+    int target_remaining_armor;
+} FireResult;
 /* ============================================================================
  * ITEMS CONFIG (STATIC - READ ONLY)
  * Description: Defines purchasable items

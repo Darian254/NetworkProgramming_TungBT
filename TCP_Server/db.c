@@ -60,10 +60,26 @@ int          match_count = 0;
 Ship         ships[MAX_SHIPS];  // Temporary, in-memory only
 int          ship_count = 0;
 
+Ship active_ships[100];
+int num_active_ships = 0;
 // TODO: UserTable from users.h/c
 UserTable *g_user_table = NULL;
 
+TreasureChest active_chests[MAX_TEAMS]; 
 
+ChestPuzzle puzzles[] = {
+    {"1 + 1 = ?", "2"},             // Đồng
+    {"Thủ đô của Việt Nam?", "Ha Noi"}, // Bạc
+    {"Giao thức tầng giao vận nào tin cậy?", "TCP"} // Vàng
+};
+
+WeaponTemplate weapon_templates[] = {
+    {1, "Pháo",    10, 1000, 50},
+    {2, "Laze",   100, 1000, 10},
+    {3, "Tên lửa", 800, 2000, 1}
+};
+
+Ship* find_ship_by_id(int ship_id);  
 /* ============================================================================
  * AUTO-INCREMENT IDs
  * ============================================================================ */
@@ -167,6 +183,35 @@ int get_armor_value(ArmorType type) {
         default:             return 0;
     }
 }
+
+//Tìm tàu theo id
+Ship* find_ship_by_id(int ship_id) {
+    for (int i = 0; i < num_active_ships; i++) {
+        if (active_ships[i].ship_id == ship_id) {
+            return &active_ships[i];
+        }
+    }
+    return NULL;
+}
+
+
+//Lấy template vũ khí
+WeaponTemplate* get_weapon_template(int weapon_id) {
+    for (int i = 0; i < 3; i++) {
+        if (weapon_templates[i].weapon_id == weapon_id) {
+            return &weapon_templates[i];
+        }
+    }
+    return NULL;
+}
+
+
+void update_ship_state(Ship* ship) {
+    if (ship->hp == 0) {
+        printf("[DEBUG] Tàu %d đã bị phá hủy!\n", ship->player_id);
+    }
+}
+
 
 /* ============================================================================
  * TEAM OPERATIONS
@@ -337,6 +382,7 @@ Ship* create_ship(int match_id, const char *username) {
     ship->armor_slot_1_value = 0;
     ship->armor_slot_2_type = ARMOR_NONE;
     ship->armor_slot_2_value = 0;
+    //TODO
     ship->cannon_ammo = SHIP_DEFAULT_CANNON;
     ship->laser_count = SHIP_DEFAULT_LASER;
     ship->missile_count = SHIP_DEFAULT_MISSILE;
