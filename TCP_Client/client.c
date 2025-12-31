@@ -507,9 +507,9 @@ int main(int argc, char *argv[]) {
 
             case FUNC_FIRE: { /* Bắn tàu khác */
                 char target_id[32];
-                char weapon_id[16] = "1"; // Mặc định súng 1 (Cannon)
+                char weapon_id[16] = "0" ;//Mặc định súng 1 (Cannon)
 
-                printf("Enter Target ID (User/Ship ID): ");
+                printf("Enter Target ID (User): ");
                 fflush(stdout);
                 safeInput(target_id, sizeof(target_id));
 
@@ -532,11 +532,11 @@ int main(int argc, char *argv[]) {
 
                 // 2. Chờ phản hồi NGAY LẬP TỨC
                 if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
-                    // Xử lý kết quả bắn: Server trả về "200 ..." hoặc thông báo lỗi
-                    int atk, tar, dam, hp, arm;
+                    int dam, hp, arm;
+                    char atk_name[128], tar_name[128];
                     // Giả sử server trả về: "200 AtkID TarID Dam HP Armor" khi bắn trúng
-                    if (sscanf(recvbuf, "200 %d %d %d %d %d", &atk, &tar, &dam, &hp, &arm) == 5) {
-                         printf("\n>>> [HIT] You hit Target %d! Damage: %d | Enemy HP: %d\n", tar, dam, hp);
+                    if (sscanf(recvbuf, "200 %s %s %d %d %d", atk_name, tar_name, &dam, &hp, &arm) == 5) {
+                        printf("\n>>> [HIT] You hit %s! Damage: %d | Enemy HP: %d\n", tar_name, dam, hp);
                     } else {
                         // Nếu bắn trượt hoặc lỗi, dùng beautify
                         char pretty[1024];
@@ -569,39 +569,85 @@ int main(int argc, char *argv[]) {
                 break;
             }
 
-            case FUNC_OPEN_CHEST: { /* Mở rương trả lời câu hỏi */
+            // --- OPTION 42: THẢ RƯƠNG ---
+            case FUNC_DROP_CHEST: { 
+                if (send_line(sock, "DEBUG_CHEST") < 0) break;
+                
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    int code, cid;
+                    // Server trả về: 200 CHEST_DROPPED <ID>
+                    if (sscanf(recvbuf, "%d CHEST_DROPPED %d", &code, &cid) == 2 && code == 200) {
+                        //  In ra ID rương sạch sẽ
+                        printf("\n>>> SUCCESS: Chest dropped! ID: %d\n", cid);
+                    } else {
+                        // Nếu server báo lỗi khác
+                        char pretty[1024];
+                        beautify_result(recvbuf, pretty, sizeof(pretty));
+                        printf("%s", pretty);
+                    }
+                }
+                break;
+            }
+
+            // --- OPTION 41: MỞ RƯƠNG (HỎI -> TRẢ LỜI) ---
+            case FUNC_OPEN_CHEST: { 
                 char chest_id[16];
                 char answer[128];
 
+                // 1. Nhập ID
                 printf("Enter Chest ID: ");
                 fflush(stdout);
                 safeInput(chest_id, sizeof(chest_id));
                 if (strlen(chest_id) == 0) break;
 
-                printf("Enter Answer: ");
-                fflush(stdout);
-                safeInput(answer, sizeof(answer));
-                if (strlen(answer) == 0) {
-                     printf("Answer cannot be empty.\n");
-                     break;
-                }
+                // 2. Gửi ID lên để lấy câu hỏi
+                snprintf(cmd, sizeof(cmd), "CHEST_OPEN %s", chest_id);
+                if (send_line(sock, cmd) < 0) break;
 
-                // Gửi lệnh: CHEST_OPEN [ID] [ANSWER]
-                snprintf(cmd, sizeof(cmd), "CHEST_OPEN %s %s", chest_id, answer);
-
-                if (send_line(sock, cmd) < 0) {
-                    perror("send() error");
-                    break;
-                }
-
+                // 3. Nhận câu hỏi
                 if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
-                    // Server có thể trả về: "127 Correct! +100 coin" hoặc "Error"
-                    char pretty[1024];
-                    beautify_result(recvbuf, pretty, sizeof(pretty));
-                    printf("%s", pretty);
+                    int code;
+                    char question_text[256];
+                    
+                    // Server trả về: 211 <Nội dung câu hỏi>
+                    if (sscanf(recvbuf, "%d %[^\n]", &code, question_text) == 2 && code == 211) {
+                        
+                        // YÊU CẦU 3: In ra câu hỏi cho người dùng
+                        printf("\n====================================\n");
+                        printf(">>> CÂU HỎI: %s\n", question_text);
+                        printf("====================================\n");
+                        
+                        // 4. Nhập đáp án
+                        printf("Nhap dap an cua ban: ");
+                        fflush(stdout);
+                        safeInput(answer, sizeof(answer));
+                        
+                        if (strlen(answer) == 0) {
+                            printf("Da huy tra loi.\n");
+                            break;
+                        }
+
+                        // 5. Gửi ID + Đáp án
+                        snprintf(cmd, sizeof(cmd), "CHEST_OPEN %s %s", chest_id, answer);
+                        if (send_line(sock, cmd) < 0) break;
+                        
+                        // 6. Nhận kết quả cuối cùng
+                        if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                            char pretty[1024];
+                            beautify_result(recvbuf, pretty, sizeof(pretty));
+                            printf("%s", pretty);
+                        }
+
+                    } else {
+                        // YÊU CẦU 2: Đã sửa lỗi double response nên sẽ không vào đây nữa
+                        // Trừ khi bạn nhập sai ID rương
+                        char pretty[1024];
+                        beautify_result(recvbuf, pretty, sizeof(pretty));
+                        printf("Lỗi: %s", pretty);
+                    }
                 }
                 break;
-            }
+            }27
 
             case FUNC_JOIN_REQUEST: { 
                 char team_name[128];

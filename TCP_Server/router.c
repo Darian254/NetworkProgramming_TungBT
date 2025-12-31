@@ -374,26 +374,41 @@ void command_routes(int client_sock, char *command) {
     }
     // =================Fire===============
     else if (strcmp(type, "FIRE") == 0) {
-        int target_id, weapon_id;
+        char target_name[128];
+        int  weapon_id;
         // Parse: FIRE <target> <weapon>
-        if (sscanf(payload, "%d %d", &target_id, &weapon_id) == 2) {
+        if (sscanf(payload, "%s %d", target_name , &weapon_id) == 2) {
             FireResult result;
             memset(&result, 0, sizeof(FireResult));
             
-            // Gọi Logic (Lưu ý: session ở đây đã có sẵn từ code gốc, không cần tạo mới)
-            response_code = server_handle_fire(session, target_id, weapon_id, &result);
+            // Gọi Logic
+            response_code = server_handle_fire(session, target_name, weapon_id, &result);
             
-            if (response_code == RESP_COIN_OK) {
-                // 1. Chuẩn bị response cho người bắn (sẽ được gửi ở cuối hàm)
-                snprintf(response, sizeof(response), "131 %d %d %d %d\r\n", 
-                         result.target_id, result.damage_dealt, 
-                         result.target_remaining_hp, result.target_remaining_armor);
+
+            if (response_code == RESP_FIRE_OK) { // Sửa lại hằng số này cho đúng với config.h
+                // Chuẩn bị response cho người bắn
+                snprintf(response, sizeof(response), "200 %s %s %d %d %d\r\n", 
+                         session->username,         
+                         target_name,              
+                         result.damage_dealt, 
+                         result.target_remaining_hp, 
+                         result.target_remaining_armor);
                 
-                // 2. Broadcast cho mọi người khác (Gửi ngay lập tức)
-                broadcast_fire_event(result.attacker_id, result.target_id, result.damage_dealt, result.target_remaining_hp, result.target_remaining_armor);
+                // Broadcast)
+               broadcast_fire_event(session->username, target_name, 
+                                     result.damage_dealt, 
+                                     result.target_remaining_hp, 
+                                     result.target_remaining_armor);
             } else {
-                // Gửi lỗi
-                snprintf(response, sizeof(response), "%d FIRE_FAIL\r\n", response_code);
+                //Xử lý thông báo lỗi chi tiết
+                const char *err_msg = "FIRE_FAIL";
+                if (response_code == RESP_OUT_OF_AMMO) err_msg = "Out of Ammo";
+                else if (response_code == RESP_WEAPON_NOT_EQUIPPED) err_msg = "Weapon Not Equipped";
+                else if (response_code == RESP_TARGET_DESTROYED) err_msg = "Target Destroyed";
+                else if (response_code == RESP_INVALID_TARGET) err_msg = "Invalid Target";
+                else if (response_code == RESP_NOT_IN_MATCH) err_msg = "Not in Match";
+
+                snprintf(response, sizeof(response), "%d %s\r\n", response_code, err_msg);
             }
         } else {
             snprintf(response, sizeof(response), "301 SYNTAX_ERROR\r\n");
@@ -430,23 +445,44 @@ void command_routes(int client_sock, char *command) {
     // --- XỬ LÝ CHEST (Rương) ---
     else if (strcmp(type, "CHEST_OPEN") == 0) {
         int chest_id;
-        char answer[128];
-        if (sscanf(payload, "%d %[^\n]", &chest_id, answer) == 2) {
+        char answer[128] = "";
+
+        // Thử đọc 2 tham số: ID và Đáp án
+        int args = sscanf(payload, "%d %[^\n]", &chest_id, answer);
+
+        if (args == 1) { 
+            // TRƯỜNG HỢP 1: Client chỉ gửi ID -> Muốn lấy câu hỏi
+            char question[256];
+            response_code = server_handle_get_chest_question(session, chest_id, question);
+            
+            if (response_code == RESP_CHEST_QUESTION) { // 211
+                snprintf(response, sizeof(response), "211 %s\r\n", question);
+            } else {
+                // Gửi lỗi nếu không tìm thấy rương
+                snprintf(response, sizeof(response), "%d CHEST_ERROR\r\n", response_code);
+            }
+        } 
+        else if (args == 2) {
+            // TRƯỜNG HỢP 2: Client gửi ID + Đáp án -> Muốn trả lời
             response_code = server_handle_open_chest(session, chest_id, answer);
             
-            if (response_code == RESP_CHEST_OPEN_OK)
+            if (response_code == RESP_CHEST_OPEN_OK) // 127
                 snprintf(response, sizeof(response), "127 CHEST_OPEN_SUCCESS\r\n");
             else
                 snprintf(response, sizeof(response), "%d CHEST_OPEN_FAIL\r\n", response_code);
-        } else {
+        } 
+        else {
             snprintf(response, sizeof(response), "301 SYNTAX_ERROR\r\n");
         }
     }
     //test rương
     else if (strcmp(type, "DEBUG_CHEST") == 0) {
         if (session->current_match_id > 0) {
-            broadcast_chest_drop(session->current_match_id); 
-            snprintf(response, sizeof(response), "200 DEBUG_DROP_OK\r\n");
+            // Truyền session->socket_fd để hàm broadcast biết đường tránh
+            int chest_id = broadcast_chest_drop(session->current_match_id, session->socket_fd); 
+            
+            // Chỉ gửi tin nhắn 200 này về cho người thả
+            snprintf(response, sizeof(response), "200 CHEST_DROPPED %d\r\n", chest_id);
         } else {
             snprintf(response, sizeof(response), "500 NOT_IN_MATCH\r\n");
         }

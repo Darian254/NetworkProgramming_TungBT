@@ -8,7 +8,10 @@
 #include <unistd.h>
 #include "users.h"
 #include "users_io.h"
+#include <ctype.h>
 #include "db_schema.h"  // For FILE_USERS and function declarations
+
+
 
 /* Global session manager with mutex for thread safety */
 static SessionManager session_mgr = {NULL, 0};
@@ -433,9 +436,27 @@ int server_handle_fire(ServerSession *session,
     if (!session || !session->isLoggedIn)
         return RESP_NOT_LOGGED;
 
-    if (session->current_match_id <= 0)
-        return RESP_NOT_IN_MATCH;
-
+    if (session->current_match_id <= 0) {
+        int found_match = find_current_match_by_username(session->username);
+        if (found_match > 0) {
+            session->current_match_id = found_match;
+        } else {
+            return RESP_NOT_IN_MATCH; 
+        }
+    }
+    char clean_name[128];
+    int j = 0;
+    for (int i = 0; target_name[i] != '\0'; i++) {
+        // Chỉ giữ lại chữ cái (a-z, A-Z) và số (0-9)
+        if (isalnum((unsigned char)target_name[i])) {
+            clean_name[j++] = target_name[i];
+        }
+    }
+    clean_name[j] = '\0'; // Kết thúc chuỗi
+    // Cập nhật lại target_name trỏ vào chuỗi sạch
+    printf("[DEBUG] Cleaning name: '%s' -> '%s'\n", target_name, clean_name); // Log để kiểm tra
+    target_name = clean_name;
+    
     Ship *attacker = find_ship(
         session->current_match_id,
         session->username
@@ -444,7 +465,7 @@ int server_handle_fire(ServerSession *session,
     Ship *target = find_ship_by_name(target_name);
 
     if (!attacker || !target ) {
-        return RESP_INVALID_TARGET;
+        return RESP_INVALID_TARGET;//343
     }
     //Lấy team của người bắn từ session
     int attacker_team_id = session->current_team_id;
@@ -458,12 +479,12 @@ int server_handle_fire(ServerSession *session,
     int rc = calculate_and_update_damage(attacker, target, weapon_type, result);
 
     if (rc != 0) {
-        const char *msg = "Fire Failed";
-        if (rc == RESP_OUT_OF_AMMO) msg = "Out of Ammo";
-        else if (rc == RESP_WEAPON_NOT_EQUIPPED) msg = "Weapon Not Equipped";
-        else if (rc == RESP_TARGET_DESTROYED) msg = "Target Already Destroyed";
+        // const char *msg = "Fire Failed";
+        // if (rc == RESP_OUT_OF_AMMO) msg = "Out of Ammo";
+        // else if (rc == RESP_WEAPON_NOT_EQUIPPED) msg = "Weapon Not Equipped";
+        // else if (rc == RESP_TARGET_DESTROYED) msg = "Target Already Destroyed";
 
-        send_error_response(session->socket_fd, rc, msg);
+        // send_error_response(session->socket_fd, rc, msg);
         return rc;
     }
 
@@ -642,19 +663,78 @@ int server_spawn_chest(int match_id) {
 }
 
 //Sinh rương và tb all
-void broadcast_chest_drop(int match_id) {
+int broadcast_chest_drop(int match_id, int exclude_socket_fd) {
+    // 1. Tạo rương
     int c_id = server_spawn_chest(match_id);
-    TreasureChest *chest = &active_chests[match_id % MAX_TEAMS];
+    TreasureChest *chest = find_chest_by_id_in_match(match_id, c_id);
+    if (!chest) return -1;
 
+    // 2. Chuẩn bị tin nhắn Broadcast (Mã 141)
     char notify[BUFF_SIZE];
-    // Protocol: 140 <chest_id> <type> <x> <y>
     snprintf(notify, sizeof(notify), "%d %d %d %d %d\r\n", 
              RESP_CHEST_DROP_OK, c_id, (int)chest->type, chest->position_x, chest->position_y);
-    // Duyệt session (login, match_id)
-  
+
+    // 3. Gửi cho mọi người TRỪ người thả rương (exclude_socket_fd)
+    SessionNode *current = session_mgr.head;
+    while (current != NULL) {
+        if (current->session.isLoggedIn && 
+            current->session.current_match_id == match_id &&
+            current->session.socket_fd != exclude_socket_fd) { // <--- QUAN TRỌNG: Loại trừ chính mình
+            
+            (void)write(current->session.socket_fd, notify, strlen(notify));
+        }
+        current = current->next;
+    }
+
     printf("[SERVER INFO] Chest %d dropped in match %d\n", c_id, match_id);
+    return c_id;
+}
+int server_handle_open_chest(ServerSession *session, int chest_id, const char *answer) {
+    if (!session || !session->isLoggedIn) return RESP_NOT_LOGGED; // 315
+
+    TreasureChest *chest = find_chest_by_id_in_match(session->current_match_id, chest_id);
+    if (!chest) return RESP_CHEST_NOT_FOUND;       // 440
+    if (chest->is_collected) return RESP_CHEST_OPEN_FAIL; // 339
+
+    // Kiểm tra đáp án
+    char q[256], a[64];
+    get_chest_puzzle(chest->type, q, a); //
+    
+    // So sánh đáp án (không phân biệt hoa thường)
+    if (strcasecmp(answer, a) != 0) {
+        return 442; // RESP_WRONG_ANSWER
+    }
+
+    // --- TRẢ LỜI ĐÚNG ---
+    chest->is_collected = true;
+    
+    // Tính thưởng
+    int reward = (chest->type == CHEST_BRONZE) ? 100 : (chest->type == CHEST_SILVER ? 500 : 2000);
+    session->coins += reward; 
+
+    // Broadcast thông báo cho mọi người biết rương đã bị nhặt
+    char notify[BUFF_SIZE];
+    snprintf(notify, sizeof(notify), "210 CHEST_COLLECTED %s %d\r\n", session->username, chest_id);
+    
+    // Gửi broadcast (bạn có thể gọi hàm gửi broadcast riêng nếu muốn, hoặc loop tại đây)
+    // Tạm thời bỏ qua loop broadcast ở đây để code gọn, tập trung vào return.
+
+    return RESP_CHEST_OPEN_OK; // 127
 }
 
+// 3. Hàm lấy câu hỏi (Giữ nguyên như bạn viết)
+int server_handle_get_chest_question(ServerSession *session, int chest_id, char *question_out) {
+    if (!session || !session->isLoggedIn) return RESP_NOT_LOGGED;
+
+    TreasureChest *chest = find_chest_by_id_in_match(session->current_match_id, chest_id);
+    if (!chest) return RESP_CHEST_NOT_FOUND;       // 440
+    if (chest->is_collected) return RESP_CHEST_OPEN_FAIL; // 339
+
+    char dummy_ans[64];
+    get_chest_puzzle(chest->type, question_out, dummy_ans); //
+    
+    return RESP_CHEST_QUESTION; // 211
+}
 // Hàm lấy câu hỏi dựa trên loại rương
 void get_chest_puzzle(ChestType type, char *q_out, char *a_out) {
     strcpy(q_out, puzzles[(int)type].question);
@@ -669,42 +749,6 @@ TreasureChest* find_chest_by_id_in_match(int match_id, int chest_id) {
     }
     return NULL;
 }
-
-int server_handle_open_chest(ServerSession *session, int chest_id, const char *answer) {
-    if (!session || !session->isLoggedIn) return 315;
-
-    TreasureChest *chest = find_chest_by_id_in_match(session->current_match_id, chest_id);
-    if (!chest) return 332; // CHEST_NOT_FOUND
-    if (chest->is_collected) return 339; // OPEN_CHEST_FAIL
-
-    char q[256], a[64];
-    get_chest_puzzle(chest->type, q, a);
-    
-    if (strcasecmp(answer, a) != 0) {
-        return 442; // RESP_WRONG_ANSWER
-    }
-
-    // Trả lời đúng
-    chest->is_collected = true;
-    int reward = (chest->type == CHEST_BRONZE) ? 100 : (chest->type == CHEST_SILVER ? 500 : 2000);
-    //Cập nhập coin
-    session->coins += reward; 
-    int current_player_coins = session->coins;
-
-    // Gửi phản hồi thành công cho người mở rương 
-    char res[BUFF_SIZE];
-    snprintf(res, sizeof(res), "127 CHEST_OK %d %d %d 2\n{}\r\n", chest_id, reward, current_player_coins);
-    
-
-    // Thông báo cho tất cả mọi người trong trận đấu (Broadcast)
-    char notify[BUFF_SIZE];
-    snprintf(notify, sizeof(notify), "210 CHEST_COLLECTED %s %d\r\n", session->username, chest_id);
-
-    return 127;
-
-
-}
-
 
 
   
@@ -755,7 +799,10 @@ void broadcast_fire_event(const char* attacker_name, const char* target_name, in
     while (current != NULL) {
         // Chỉ gửi nếu đã login và đang ở trong cùng match_id
         if (current->session.isLoggedIn && current->session.current_match_id == match_id) {
-            (void)write(current->session.socket_fd, msg, strlen(msg));
+            // Kiểm tra: Nếu là người bắn thì KHÔNG gửi broadcast (tránh trùng lặp)
+            if (strcmp(current->session.username, attacker_name) != 0) {
+                (void)write(current->session.socket_fd, msg, strlen(msg));
+            }
         }
         current = current->next;
     }
@@ -1051,5 +1098,4 @@ int server_handle_match_info(int match_id, char *output, size_t output_size, Use
     printf("[DEBUG] Output: %s\n", output);
     return RESP_MATCH_INFO_OK;
 }
-
 

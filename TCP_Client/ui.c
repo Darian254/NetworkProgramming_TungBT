@@ -62,6 +62,7 @@ void displayMenu() {
     printf("39. Fire (Attack)\n");
     printf("40. Challenge Team\n");
     printf("41. Open Chest\n");
+    printf("42. Drop Chest (Debug)\n");
     printf("==================================\n");
     printf("Select an option: ");
 }

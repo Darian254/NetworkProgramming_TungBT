@@ -249,7 +249,7 @@ void send_fire_ok(int attacker_socket, int target_id, int damage, int hp, int ar
 void broadcast_fire_event(const char* attacker_name, const char* target_name, int dam, int hp, int armor);
 
 
-int server_handle_fire(ServerSession *session, char* target_name, int weapon_id, FireResult *result);
+int server_handle_fire(ServerSession *session, char* target_name, int weapon_type, FireResult *result);
 
 /**
  * @brief Xử lý yêu cầu gửi lời thách đấu
@@ -290,7 +290,7 @@ int server_spawn_chest(int match_id);
  * @brief Gửi thông báo rương rơi tới toàn bộ người chơi trong trận đấu
  * @param match_id ID trận đấu cần thông báo
  */
-void broadcast_chest_drop(int match_id);
+int broadcast_chest_drop(int match_id, int exclude_socket_fd);
 
 /**
  * @brief Xử lý khi người chơi thực hiện mở rương (trả lời câu hỏi)
@@ -301,7 +301,7 @@ void broadcast_chest_drop(int match_id);
 
 
 
-int server_handle_open_chest(ServerSession *session, int chest_id, const char *answer);
+int server_handle_open_chest(ServerSession *session, int chest_id, const char *answer, );
 void get_chest_puzzle(ChestType type, char *q_out, char *a_out);
 
 
@@ -396,5 +396,5 @@ int get_active_session_count(void);
  *   - RESP_MATCH_NOT_FOUND (414): Match not found
  */
 int server_handle_match_info(int match_id, char *output, size_t output_size, UserTable *user);
-
+TreasureChest* find_chest_by_id_in_match(int match_id, int chest_id);
 #endif

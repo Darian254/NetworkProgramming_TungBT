@@ -190,12 +190,23 @@ int get_armor_value(ArmorType type) {
 
 //Tìm tàu theo tên người chơi
 Ship* find_ship_by_name(char* target_name) {
-    // Resolve by hashing the username; Ship stores only player_username
+    if (!target_name) return NULL;
+
+    // Duyệt qua danh sách tàu đang có (biến ship_count và mảng ships khai báo trong db.c)
+    extern Ship ships[]; 
+    extern int ship_count;
+
+    printf("[DEBUG] Searching for ship: '%s' | Total ships: %d\n", target_name, ship_count);
     for (int i = 0; i < ship_count; i++) {
-        if (hashFunc(ships[i].player_username) == target_name) {
+        printf(" -> Checked ship [%d]: '%s' (Match ID: %d)\n", 
+               i, ships[i].player_username, ships[i].match_id);
+        
+        if (strcmp(ships[i].player_username, target_name) == 0) {
+            printf("[DEBUG] FOUND target!\n");
             return &ships[i];
         }
     }
+    printf("[DEBUG] Target NOT FOUND.\n");
     return NULL;
 }
 

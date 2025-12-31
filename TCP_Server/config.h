@@ -46,7 +46,8 @@ typedef enum {
     FUNC_END_MATCH = 22,        /**< End current match */
     FUNC_FIRE = 39,          /**< Bắn tàu khác */
     FUNC_CHALLENGE = 40,     /**< Gửi lời thách đấu */
-    FUNC_OPEN_CHEST = 41,     /**< Mở rương */
+    FUNC_OPEN_CHEST = 41,
+    FUNC_DROP_CHEST = 42,     /**< Mở rương */
     // TODO: Repair HP - fix later
     FUNC_REPAIR = 23,       /**< Repair HP */
     
@@ -169,8 +170,8 @@ typedef enum {
     RESP_INVALID_TARGET = 343,       /**< Invalid target */
     RESP_TARGET_DESTROYED = 344,     /**< Target destroyed */
     RESP_NOT_YOUR_TURN = 335,        /**< Not your turn */
-    RESP_CHEST_DROP_OK = 140,  
-    RESP_FIRE_OK =     131,
+    RESP_CHEST_DROP_OK = 141,  
+    RESP_FIRE_OK =     200,
     
     /* Error codes - Chest (Dự phòng cho logic mở rương) */
     RESP_CHEST_NOT_FOUND = 440,    /**< Chest ID invalid */
@@ -180,6 +181,8 @@ typedef enum {
     RESP_MATCH_FINISHED = 325,
     RESP_CHEST_OPEN_FAIL = 339,
     RESP_CHEST_BROADCAST = 210,
+    RESP_CHEST_QUESTION = 211,
+    // RESP_CHEST_NOT_FOUND = 341,
 
     RESP_CHALLENGE_SENT = 130,      /**< Challenge sent successfully */
     RESP_CHALLENGE_ACCEPTED = 131,  /**< Challenge accepted */
@@ -307,6 +310,8 @@ static const ResponseMessage RESPONSE_MESSAGES[] = {
     {RESP_MATCH_FINISHED,       "325 ERROR: Match has already finished."},
     {RESP_CHEST_OPEN_FAIL,      "339 ERROR: Chest has already been opened."},
     {RESP_CHEST_BROADCAST,      "210 CHEST_COLLECTED: A chest has been collected in the match."},
+    {RESP_CHEST_QUESTION,       "211 Question chest ."    },
+    {RESP_CHEST_DROP_OK,         "141 chest drop ok"},
 
     //Challenge
     {RESP_CHALLENGE_SENT,     "130 CHALLENGE_SENT successful."},
