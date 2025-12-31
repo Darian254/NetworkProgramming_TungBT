@@ -73,7 +73,7 @@ WeaponTemplate weapon_templates[] = {
     {3, "Tên lửa", 800, 2000, 1}
 };
 
-Ship* find_ship_by_id(int ship_id);  
+
 /* ============================================================================
  * AUTO-INCREMENT IDs
  * ============================================================================ */
@@ -158,6 +158,16 @@ int find_available_opponent_team(int user_team_id) {
     // No available teams found
     return -1;
 }
+
+Ship* find_ship(int match_id, const char *username) {  
+    if (!match_id || !username) return NULL;
+
+    for (int i = 0; i < ship_count; i++) {
+        if (ships[i].match_id == match_id && strcmp(ships[i].player_username, username) == 0) return &ships[i];
+    }
+    return NULL;
+}
+
 
 /* ============================================================================
  * HELPER: Get item info by type
@@ -247,7 +257,6 @@ Team* create_team(const char *name, const char *creator_username) {
     team->name[TEAM_NAME_LEN - 1] = '\0';
     strncpy(team->creator_username, creator_username, MAX_USERNAME - 1);
     team->creator_username[MAX_USERNAME - 1] = '\0';
-    team->creator_id = (int)hashFunc(creator_username);
     team->member_limit = MAX_TEAM_MEMBERS;
     team->status = TEAM_ACTIVE;
     team->created_at = time(NULL);
@@ -257,7 +266,6 @@ Team* create_team(const char *name, const char *creator_username) {
     if (team_member_count < MAX_TEAMS * MAX_TEAM_MEMBERS) {
         TeamMember *member = &team_members[team_member_count];
         member->team_id = team->team_id;
-        member->user_id = team->creator_id;
         strncpy(member->username, creator_username, MAX_USERNAME - 1);
         member->username[MAX_USERNAME - 1] = '\0';
         member->role = ROLE_CREATOR;
@@ -352,37 +360,25 @@ void clear_user_requests(const char *username) {
  * SHIP OPERATIONS
  * ============================================================================ */
 
-Ship* find_ship(int match_id, const char *username) {
+Ship* create_ship(int match_id, const char *username) {
     if (!username) return NULL;
+    if (ship_count >= MAX_SHIPS) return NULL;
     
-    int player_id = (int)hashFunc(username);
-    for (int i = 0; i < ship_count; i++) {
-        if (ships[i].match_id == match_id && ships[i].player_id == player_id) {
-            return &ships[i];
-        }
-    }
-    return NULL;
+    Ship *ship = &ships[ship_count];
+    ship->match_id = match_id;
+    strncpy(ship->player_username, username, MAX_USERNAME - 1);
+    ship->player_username[MAX_USERNAME - 1] = '\0';
+    ship->hp = SHIP_DEFAULT_HP;
+    ship->armor_slot_1_type = ARMOR_NONE;
+    ship->armor_slot_1_value = 0;
+    ship->armor_slot_2_type = ARMOR_NONE;
+    ship->armor_slot_2_value = 0;
+    ship->cannon_ammo = SHIP_DEFAULT_CANNON;
+    ship->laser_count = SHIP_DEFAULT_LASER;
+    ship->missile_count = SHIP_DEFAULT_MISSILE;
+    ship_count++;
+    return ship;
 }
-
-// Ship* create_ship(int match_id, const char *username) {
-//     if (!username) return NULL;
-//     if (ship_count >= MAX_SHIPS) return NULL;
-    
-//     Ship *ship = &ships[ship_count];
-//     ship->match_id = match_id;
-//     ship->player_id = (int)hashFunc(username);
-//     ship->hp = SHIP_DEFAULT_HP;
-//     ship->armor_slot_1_type = ARMOR_NONE;
-//     ship->armor_slot_1_value = 0;
-//     ship->armor_slot_2_type = ARMOR_NONE;
-//     ship->armor_slot_2_value = 0;
-//     //TODO
-//     ship->cannon_ammo = SHIP_DEFAULT_CANNON;
-//     ship->laser_count = SHIP_DEFAULT_LASER;
-//     ship->missile_count = SHIP_DEFAULT_MISSILE;
-//     ship_count++;
-//     return ship;
-// }
 
 void delete_ships_by_match(int match_id) {
     for (int i = ship_count - 1; i >= 0; i--) {
@@ -616,7 +612,7 @@ bool can_end_match(int match_id, int *winner_team_id) {
         // Resolve team of this ship via team_members
         int ship_team_id = -1;
         for (int tm = 0; tm < team_member_count; tm++) {
-            if (team_members[tm].user_id == ships[i].player_id) {
+            if (strcmp(ships[i].player_username, team_members[tm].username) == 0) {
                 ship_team_id = team_members[tm].team_id;
                 break;
             }
@@ -653,6 +649,34 @@ int get_match_result(int match_id) {
     return match->winner_team_id;
 }
 
+/* ============================================================================
+ * CHALLENGE OPERATIONS
+ * ============================================================================ */
 
+Challenge* find_challenge_by_id(int challenge_id) {
+    if (challenge_id <= 0) return NULL;
+    
+    for (int i = 0; i < challenge_count; i++) {
+        if (challenges[i].challenge_id == challenge_id) {
+            return &challenges[i];
+        }
+    }
+    return NULL;
+}
 
+int create_challenge_record(int sender_team_id, int target_team_id) {
+    if (sender_team_id <= 0 || target_team_id <= 0) return -1;
+    if (challenge_count >= MAX_CHALLENGES) return -1;
+    
+    Challenge *ch = &challenges[challenge_count];
+    ch->challenge_id = next_challenge_id++;
+    ch->sender_team_id = sender_team_id;
+    ch->target_team_id = target_team_id;
+    ch->created_at = time(NULL);
+    ch->status = STATUS_PENDING;
+    ch->responded_at = 0;
+    challenge_count++;
+    
+    return ch->challenge_id;
+}
 
