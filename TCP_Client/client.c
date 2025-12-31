@@ -985,7 +985,7 @@ int main(int argc, char *argv[]) {
                 char current_username[128] = "Unknown";
                 long current_coin = -1;
                 char team_name[128] = "(No team)";
-
+                char current_team[128] = "(No team)";
                 char captain[128] = "Unknown";
 
                 int member_count = 0;
@@ -1103,7 +1103,7 @@ int main(int argc, char *argv[]) {
                 // Note: HP requires a GET_HP command or similar (not implemented yet)
                 // For now, HP will show as "--"
                 
-                int home_sel = home_menu_ncurses(current_username, current_coin, current_team, current_hp, current_armor);
+                int home_sel = home_menu_ncurses(current_username, current_coin, team_name, current_hp, current_armor);
                 if (home_sel == -1 || home_sel == 6) {
                     break; // Back or cancelled
                 }
@@ -1333,4 +1333,7 @@ int main(int argc, char *argv[]) {
     return EXIT_SUCCESS;
 
 }
+    }
+}
+
 
