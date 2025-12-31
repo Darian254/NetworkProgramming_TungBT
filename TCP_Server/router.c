@@ -170,6 +170,50 @@ void command_routes(int client_sock, char *command) {
             log_activity("BUYARMOR", session->username, session->isLoggedIn, payload, response_code);
         }
     }
+    else if (strcmp(type, "GET_WEAPON") == 0) {
+        if(session->isLoggedIn == false) {
+            response_code = RESP_NOT_LOGGED;
+            snprintf(response, sizeof(response), "%d\r\n", response_code);
+            log_activity("GET_WEAPON", session->username, false, payload, response_code);
+        } else {
+            int match_id = session->current_match_id;
+            if (match_id <= 0) {
+                match_id = find_current_match_by_username(session->username);
+            }
+            if (match_id <= 0) {
+                response_code = RESP_NOT_IN_MATCH;
+                snprintf(response, sizeof(response), "%d\r\n", response_code);
+                log_activity("GET_WEAPON", session->username, session->isLoggedIn, payload, response_code);
+            } else {
+                Ship *ship = find_ship(match_id, session->username);
+                if (ship) {
+                    response_code = RESP_MATCH_INFO_OK;
+                    snprintf(response, sizeof(response), "%d %d %d %d\r\n",
+                             response_code,
+                             ship->cannon_ammo,
+                             ship->laser_count,
+                             ship->missile_count);
+                    log_activity("GET_WEAPON", session->username, session->isLoggedIn, payload, response_code);
+                } else {
+                    response_code = RESP_INTERNAL_ERROR;
+                    snprintf(response, sizeof(response), "%d\r\n", response_code);
+                    log_activity("GET_WEAPON", session->username, session->isLoggedIn, payload, response_code);
+                }
+            }
+        }
+    }
+    else if (strcmp(type, "BUY_WEAPON") == 0) {
+        int weapon_type;
+        if (sscanf(payload, "%d", &weapon_type) != 1) {
+            response_code = RESP_SYNTAX_ERROR;
+            snprintf(response, sizeof(response), "%d\r\n", response_code);
+            log_activity("BUY_WEAPON", session->username, false, payload, response_code);
+        } else {
+            response_code = server_handle_buy_weapon(session, app_context_get_user_table(), weapon_type);
+            snprintf(response, sizeof(response), "%d\r\n", response_code);
+            log_activity("BUY_WEAPON", session->username, session->isLoggedIn, payload, response_code);
+        }
+    }
     else if (strcmp(type,"GET_MATCH_RESULT") == 0) {
         int match_id = -1;
         if (payload && sscanf(payload, "%d", &match_id) == 1 && match_id > 0) {
@@ -391,7 +435,7 @@ void command_routes(int client_sock, char *command) {
         int match_id = -1;
         if (payload && sscanf(payload, "%d", &match_id) == 1) {
             char match_info[4096] = {0};
-            response_code = server_handle_match_info(match_id, match_info, sizeof(match_info));
+            response_code = server_handle_match_info(match_id, match_info, sizeof(match_info), app_context_get_user_table());
             printf("[DEBUG] MATCH_INFO response_code=%d, info_len=%zu\n", response_code, strlen(match_info));
             if (response_code == RESP_MATCH_INFO_OK) {
                 // Replace newlines with | to send as single line

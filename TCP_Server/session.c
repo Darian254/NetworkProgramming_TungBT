@@ -822,7 +822,7 @@ int get_active_session_count(void) {
 extern TeamMember team_members[];
 extern int team_member_count;
 
-int server_handle_match_info(int match_id, char *output, size_t output_size, UserTable *user) {
+int server_handle_match_info(int match_id, char *output, size_t output_size, UserTable *user_table) {
     if (!output || output_size == 0) {
         return RESP_INTERNAL_ERROR;
     }
@@ -888,7 +888,7 @@ int server_handle_match_info(int match_id, char *output, size_t output_size, Use
             offset += snprintf(buffer + offset, sizeof(buffer) - offset,
                              "  Player: %s", username);
             printf("[DEBUG] Player: %s\n", username);
-            User *user = findUser(user, username);
+            User *user = findUser(user_table, username);
             if (user) {
                 printf("[DEBUG] Player's coin: %d\n", user->coin);
             } else {
@@ -935,8 +935,7 @@ int server_handle_match_info(int match_id, char *output, size_t output_size, Use
                              "  Player: %s", username);
                              
             printf("[DEBUG] Player: %s\n", username);
-            printf("[DEBUG] User: %s\n", user->username);
-            User *user = findUser(user, username);
+            User *user = findUser(user_table, username);
             if (user) {
                 printf("[DEBUG] Player's coin: %d\n", user->coin);
             } else {

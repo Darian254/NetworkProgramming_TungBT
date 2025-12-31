@@ -392,6 +392,6 @@ int get_active_session_count(void);
  *   - RESP_MATCH_INFO_OK (206): Success
  *   - RESP_MATCH_NOT_FOUND (414): Match not found
  */
-int server_handle_match_info(int match_id, char *output, size_t output_size);
+int server_handle_match_info(int match_id, char *output, size_t output_size, UserTable *user);
 
 #endif
