@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
 #include "util.h"
 #include "config.h"
 #include "hash.h"
@@ -13,7 +12,6 @@
 
 /* Global session manager with mutex for thread safety */
 static SessionManager session_mgr = {NULL, 0};
-static pthread_mutex_t session_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void initServerSession(ServerSession *s) {
     if (!s) return;

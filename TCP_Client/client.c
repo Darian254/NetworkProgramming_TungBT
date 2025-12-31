@@ -362,6 +362,24 @@ int main(int argc, char *argv[]) {
                 break;
             }
 
+            case FUNC_END_MATCH: {
+                printf("Enter match ID to end: "); fflush(stdout);
+                char match_id_str[16];
+                safeInput(match_id_str, sizeof(match_id_str));
+                
+                int match_id = atoi(match_id_str);
+                if (match_id <= 0) { printf("Invalid match ID.\n"); continue; }
+                
+                snprintf(cmd, sizeof(cmd), "END_MATCH %d", match_id);
+                if (send_line(sock, cmd) < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                     char pretty[1024];
+                     beautify_result(recvbuf, pretty, sizeof(pretty));
+                     printf("%s", pretty);
+                }
+                break;
+            }
+
             case FUNC_CREATE_TEAM: { 
                 char team_name[128];
                 printf("Enter new team name: "); fflush(stdout); safeInput(team_name, sizeof(team_name));

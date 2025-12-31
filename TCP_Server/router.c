@@ -195,6 +195,16 @@ void command_routes(int client_sock, char *command) {
         snprintf(response, sizeof(response), "%d\r\n", response_code);
         log_activity("START_MATCH", session->username, session->isLoggedIn, payload, response_code);
     }
+    else if (strcmp(type, "END_MATCH") == 0) {
+        int match_id = -1;
+        if (payload && sscanf(payload, "%d", &match_id) == 1 && match_id > 0) {
+            response_code = server_handle_end_match(session, match_id);
+        } else {
+            response_code = RESP_SYNTAX_ERROR;
+        }
+        snprintf(response, sizeof(response), "%d\r\n", response_code);
+        log_activity("END_MATCH", session->username, session->isLoggedIn, payload, response_code);
+    }
 
     // ========== Team/Challenge Commands (Future) ==========
     // TODO: Add more commands here as you implement team features
