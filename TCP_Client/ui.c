@@ -38,8 +38,21 @@ void displayMenu() {
     printf("20. Start Match\n");
     printf("21. Get Match Result\n");
     printf("22. End Match\n");
-    // TODO: Repair HP - fix later
     printf("23. Repair HP\n");
+    printf("----------------------------------\n");
+    printf(" [QUICK LOGIN]\n");
+    printf("24. Login as test1\n");
+    printf("25. Login as test2\n");
+    printf("26. Login as test3\n");
+    printf("27. Login as test4\n");
+    printf("28. Login as test5\n");
+    printf("29. Login as test6\n");
+    printf("----------------------------------\n");
+    printf(" [QUICK TEAM SETUP]\n");
+    printf("30. test1: Create team ABC & invite test2,3\n");
+    printf("31. test4: Create team DEF & invite test5,6\n");
+    printf("32. test2/3: Accept invite to team ABC\n");
+    printf("33. test5/6: Accept invite to team DEF\n");
     printf("==================================\n");
     printf("Select an option: ");
 }
@@ -344,7 +357,7 @@ int display_menu_ncurses(void) {
     int max_y, max_x;
     getmaxyx(stdscr, max_y, max_x);
     
-    int win_h = 32;
+    int win_h = 45;
     int win_w = 75;
     
     if (win_h > max_y - 2) win_h = max_y - 2;
@@ -388,8 +401,22 @@ int display_menu_ncurses(void) {
     mvwprintw(win, y++, 2, "21. Get Match Result");
     mvwprintw(win, y++, 2, "22. End Match");
     mvwprintw(win, y++, 2, "23. Repair HP");
+    y++;
+    mvwprintw(win, y++, 2, " [QUICK LOGIN]");
+    mvwprintw(win, y++, 2, "24. Login as test1");
+    mvwprintw(win, y++, 2, "25. Login as test2");
+    mvwprintw(win, y++, 2, "26. Login as test3");
+    mvwprintw(win, y++, 2, "27. Login as test4");
+    mvwprintw(win, y++, 2, "28. Login as test5");
+    mvwprintw(win, y++, 2, "29. Login as test6");
+    y++;
+    mvwprintw(win, y++, 2, " [QUICK SETUP]");
+    mvwprintw(win, y++, 2, "30. test1: Team ABC+invite");
+    mvwprintw(win, y++, 2, "31. test4: Team DEF+invite");
+    mvwprintw(win, y++, 2, "32. test2/3: Accept ABC");
+    mvwprintw(win, y++, 2, "33. test5/6: Accept DEF");
     
-    mvwprintw(win, win_h - 2, 2, "Enter option number (0-23) or ESC to exit: ");
+    mvwprintw(win, win_h - 2, 2, "Enter option number (0-33) or ESC to exit: ");
     
     wrefresh(win);
     
@@ -411,11 +438,11 @@ int display_menu_ncurses(void) {
             if (pos > 0) {
                 input[pos] = '\0';
                 int choice = atoi(input);
-                if (choice >= 0 && choice <= 23) {
+                if (choice >= 0 && choice <= 33) {
                     result = choice;
                     break;
                 } else {
-                    mvwprintw(win, win_h - 1, 2, "Invalid option! Enter 0-23: ");
+                    mvwprintw(win, win_h - 1, 2, "Invalid option! Enter 0-33: ");
                     wclrtoeol(win);
                     wmove(win, win_h - 2, input_x);
                     pos = 0;
@@ -436,7 +463,7 @@ int display_menu_ncurses(void) {
         } else if (ch == 27) {  /* ESC key */
             result = FUNC_EXIT;
             break;
-        } else if (isdigit(ch) && pos < 2) {
+        } else if (isdigit(ch) && pos < 3) {
             input[pos++] = ch;
             input[pos] = '\0';
             waddch(win, ch);

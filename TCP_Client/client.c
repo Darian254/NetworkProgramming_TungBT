@@ -79,13 +79,14 @@ int main(int argc, char *argv[]) {
      * 3. VÒNG LẶP CHÍNH (MAIN LOOP)
      * ========================================= */
     int choice;
+
     while (1) {
-#ifdef USE_NCURSES
-        choice = display_menu_ncurses();
-        if (choice == -1 || choice == FUNC_EXIT) {
-            break;
-        }
-#else
+// #ifdef USE_NCURSES
+//         choice = display_menu_ncurses();
+//         if (choice == -1 || choice == FUNC_EXIT) {
+//             break;
+//         }
+// #else
         char line[64];
         displayMenu();
         fflush(stdout);
@@ -95,7 +96,7 @@ int main(int argc, char *argv[]) {
             printf("Invalid input. Please enter a number.\n\n");
             continue;
         }
-#endif
+// #endif
 
         char cmd[512];
         cmd[0] = '\0'; // Reset lệnh
@@ -540,6 +541,159 @@ int main(int argc, char *argv[]) {
                     char pretty[1024];
                     beautify_result(recvbuf, pretty, sizeof(pretty));
                     printf("%s", pretty);
+                }
+                break;
+            }
+            
+            // Quick login options
+            case FUNC_QUICK_LOGIN_TEST1:
+            case FUNC_QUICK_LOGIN_TEST2:
+            case FUNC_QUICK_LOGIN_TEST3:
+            case FUNC_QUICK_LOGIN_TEST4:
+            case FUNC_QUICK_LOGIN_TEST5:
+            case FUNC_QUICK_LOGIN_TEST6: {
+                int test_num = choice - FUNC_QUICK_LOGIN_TEST1 + 1;
+                char username[20], password[20];
+                snprintf(username, sizeof(username), "test%d", test_num);
+                snprintf(password, sizeof(password), "Admin@2024");
+                
+                snprintf(cmd, sizeof(cmd), "LOGIN %s %s", username, password);
+                if (send_line(sock, cmd) < 0) {
+                    perror("send() error");
+                    break;
+                }
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+#ifdef USE_NCURSES
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+                    show_message_ncurses("Quick Login Result", pretty);
+#else
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+                    printf("%s", pretty);
+#endif
+                }
+                break;
+            }
+            
+            // test1: Create team abc and invite test2, test3
+            case FUNC_SETUP_TEAM_ABC: {
+                // Create team
+                snprintf(cmd, sizeof(cmd), "CREATE_TEAM abc");
+                if (send_line(sock, cmd) < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+#ifdef USE_NCURSES
+                    show_message_ncurses("Create Team", pretty);
+#else
+                    printf("%s", pretty);
+#endif
+                }
+                sleep(1);
+                
+                // Invite test2
+                snprintf(cmd, sizeof(cmd), "INVITE test2");
+                if (send_line(sock, cmd) < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+#ifdef USE_NCURSES
+                    show_message_ncurses("Invite test2", pretty);
+#else
+                    printf("%s", pretty);
+#endif
+                }
+                sleep(1);
+                
+                // Invite test3
+                snprintf(cmd, sizeof(cmd), "INVITE test3");
+                if (send_line(sock, cmd) < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+#ifdef USE_NCURSES
+                    show_message_ncurses("Invite test3", pretty);
+#else
+                    printf("%s", pretty);
+#endif
+                }
+                break;
+            }
+            
+            // test4: Create team def and invite test5, test6
+            case FUNC_SETUP_TEAM_DEF: {
+                // Create team
+                snprintf(cmd, sizeof(cmd), "CREATE_TEAM def");
+                if (send_line(sock, cmd) < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+#ifdef USE_NCURSES
+                    show_message_ncurses("Create Team", pretty);
+#else
+                    printf("%s", pretty);
+#endif
+                }
+                sleep(1);
+                
+                // Invite test5
+                snprintf(cmd, sizeof(cmd), "INVITE test5");
+                if (send_line(sock, cmd) < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+#ifdef USE_NCURSES
+                    show_message_ncurses("Invite test5", pretty);
+#else
+                    printf("%s", pretty);
+#endif
+                }
+                sleep(1);
+                
+                // Invite test6
+                snprintf(cmd, sizeof(cmd), "INVITE test6");
+                if (send_line(sock, cmd) < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+#ifdef USE_NCURSES
+                    show_message_ncurses("Invite test6", pretty);
+#else
+                    printf("%s", pretty);
+#endif
+                }
+                break;
+            }
+            
+            // Accept invite to team abc
+            case FUNC_ACCEPT_ABC: {
+                snprintf(cmd, sizeof(cmd), "INVITE_ACCEPT abc");
+                if (send_line(sock, cmd) < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+#ifdef USE_NCURSES
+                    show_message_ncurses("Accept Invite", pretty);
+#else
+                    printf("%s", pretty);
+#endif
+                }
+                break;
+            }
+            
+            // Accept invite to team def
+            case FUNC_ACCEPT_DEF: {
+                snprintf(cmd, sizeof(cmd), "INVITE_ACCEPT def");
+                if (send_line(sock, cmd) < 0) break;
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+#ifdef USE_NCURSES
+                    show_message_ncurses("Accept Invite", pretty);
+#else
+                    printf("%s", pretty);
+#endif
                 }
                 break;
             }
