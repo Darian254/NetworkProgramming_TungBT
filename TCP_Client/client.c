@@ -936,10 +936,16 @@ int main(int argc, char *argv[]) {
                         }
                     }
                     
-                    // Optionally fetch current HP/max HP (if GET_HP command exists)
-                    // For now, pass -1 for unknown HP values
+                    // Fetch current HP/max HP
                     int current_hp = -1, max_hp = -1;
-                    // TODO: Add GET_HP command if available
+                    if (send_line(sock, "GET_HP") >= 0 && recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                        int code_tmp = 0;
+                        int hp_tmp = -1, max_tmp = -1;
+                        if (sscanf(recvbuf, "%d %d %d", &code_tmp, &hp_tmp, &max_tmp) == 3 && code_tmp == RESP_HP_INFO_OK) {
+                            current_hp = hp_tmp;
+                            max_hp = max_tmp;
+                        }
+                    }
                     
                     int repair_amount = shop_repair_menu_ncurses(current_hp, max_hp, coin);
                     if (repair_amount <= 0) break; // cancelled or invalid

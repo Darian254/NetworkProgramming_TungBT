@@ -58,6 +58,7 @@ void displayMenu() {
     printf("36. Shop Menu\n");
     printf("37. Buy Weapon\n");
     printf("38. Get Weapon Info\n");
+    printf("39. Battle Screen\n");
     printf("==================================\n");
     printf("Select an option: ");
 }
@@ -431,8 +432,9 @@ int display_menu_ncurses(void) {
     y++;
     mvwprintw(win, y++, 2, " [SHOP]");
     mvwprintw(win, y++, 2, "36. Shop Menu");
+    mvwprintw(win, y++, 2, "39. Battle Screen");
     
-    mvwprintw(win, win_h - 2, 2, "Enter option number (0-36) or ESC to exit: ");
+    mvwprintw(win, win_h - 2, 2, "Enter option number (0-39) or ESC to exit: ");
     
     wrefresh(win);
     
@@ -454,7 +456,7 @@ int display_menu_ncurses(void) {
             if (pos > 0) {
                 input[pos] = '\0';
                 int choice = atoi(input);
-                if (choice >= 0 && choice <= 36) {
+                if (choice >= 0 && choice <= 39) {
                     result = choice;
                     break;
                 } else {
@@ -931,6 +933,206 @@ int shop_repair_menu_ncurses(int current_hp, int max_hp, int coin) {
     refresh();
     endwin();
     return result; // Returns HP amount to repair, or -1 if cancelled
+}
+
+// =====================
+// Battle Screen (6 ships)
+// =====================
+int battle_screen_ncurses(const char *my_username,
+                          const char **team_left, int left_count,
+                          const char **team_right, int right_count,
+                          int my_hp,
+                          char *out_target_username, size_t out_target_username_size,
+                          int *out_weapon_id) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(0);
+    erase();
+    refresh();
+
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+
+    int win_h = (max_y > 24) ? 24 : max_y - 2;
+    int win_w = (max_x > 80) ? 80 : max_x - 2;
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    keypad(win, TRUE);
+    box(win, 0, 0);
+
+    // Header
+    mvwprintw(win, 1, 2, "[S] Shop");
+    char hp_str[32];
+    snprintf(hp_str, sizeof(hp_str), "HP: %d", my_hp);
+    int hp_x = win_w - 2 - (int)strlen(hp_str);
+    if (hp_x < 2) hp_x = 2;
+    mvwprintw(win, 1, hp_x, "%s", hp_str);
+    mvwprintw(win, 2, (win_w - 12) / 2, "BATTLE FIELD");
+
+    // Columns for teams
+    int col_left_x = 4;
+    int col_right_x = win_w - 24;
+    int row_top = 5;
+    mvwprintw(win, row_top - 2, col_left_x,   "TEAM A (Friendly)");
+    mvwprintw(win, row_top - 2, col_right_x,  "TEAM B (Enemy)");
+
+    // Draw ships as simple boxes with usernames
+    for (int i = 0; i < left_count && i < 3; i++) {
+        int y = row_top + i * 5;
+        // ship box
+        for (int dx = 0; dx < 16; dx++) {
+            mvwaddch(win, y,     col_left_x + dx, '-');
+            mvwaddch(win, y + 3, col_left_x + dx, '-');
+        }
+        mvwaddch(win, y + 1, col_left_x, '|');
+        mvwaddch(win, y + 2, col_left_x, '|');
+        mvwaddch(win, y + 1, col_left_x + 15, '|');
+        mvwaddch(win, y + 2, col_left_x + 15, '|');
+        // username
+        const char *uname = team_left[i] ? team_left[i] : "unknown";
+        mvwprintw(win, y + 1, col_left_x + 2, "%.*s",
+                  12, uname);
+        // highlight self
+        if (my_username && team_left[i] && strcmp(my_username, team_left[i]) == 0) {
+            mvwprintw(win, y + 2, col_left_x + 2, "(You)");
+        }
+    }
+
+    int selected_enemy = 0;
+    for (int i = 0; i < right_count && i < 3; i++) {
+        int y = row_top + i * 5;
+        // ship box
+        for (int dx = 0; dx < 16; dx++) {
+            mvwaddch(win, y,     col_right_x + dx, '-');
+            mvwaddch(win, y + 3, col_right_x + dx, '-');
+        }
+        mvwaddch(win, y + 1, col_right_x, '|');
+        mvwaddch(win, y + 2, col_right_x, '|');
+        mvwaddch(win, y + 1, col_right_x + 15, '|');
+        mvwaddch(win, y + 2, col_right_x + 15, '|');
+        const char *uname = team_right[i] ? team_right[i] : "unknown";
+        mvwprintw(win, y + 1, col_right_x + 2, "%.*s", 12, uname);
+    }
+
+    mvwprintw(win, win_h - 3, 2, "Up/Down: select enemy | Enter: FIRE | S: Shop | ESC: Back");
+    wrefresh(win);
+
+    // Interaction loop to select enemy
+    while (1) {
+        // Highlight selected enemy by inverting username line
+        for (int i = 0; i < right_count && i < 3; i++) {
+            int y = row_top + i * 5;
+            if (i == selected_enemy) {
+                wattron(win, A_REVERSE);
+                mvwprintw(win, y + 1, col_right_x + 2, "%.*s",
+                          12, team_right[i] ? team_right[i] : "unknown");
+                wattroff(win, A_REVERSE);
+            } else {
+                mvwprintw(win, y + 1, col_right_x + 2, "%.*s",
+                          12, team_right[i] ? team_right[i] : "unknown");
+            }
+        }
+        wrefresh(win);
+
+        int ch = wgetch(win);
+        if (ch == KEY_UP) {
+            if (selected_enemy > 0) selected_enemy--;
+        } else if (ch == KEY_DOWN) {
+            if (selected_enemy + 1 < right_count && selected_enemy < 2) selected_enemy++;
+        } else if (ch == 's' || ch == 'S') {
+            // Request to open Shop
+            delwin(win);
+            clear();
+            refresh();
+            endwin();
+            return 0; // Shop
+        } else if (ch == 27) { // ESC
+            delwin(win);
+            clear();
+            refresh();
+            endwin();
+            return -1; // Cancel
+        } else if (ch == '\n' || ch == KEY_ENTER) {
+            // Confirm target and ask for weapon
+            const char *target_uname = (selected_enemy >= 0 && selected_enemy < right_count)
+                                       ? team_right[selected_enemy] : NULL;
+            if (!target_uname) {
+                continue;
+            }
+
+            // Weapon selection popup (reuse shop weapon layout)
+            int weapon_choice = shop_weapon_menu_ncurses(my_hp /* show hp as coin placeholder */);
+            if (weapon_choice < 0) {
+                // Back to selection
+                // Redraw main window
+                initscr();
+                cbreak();
+                noecho();
+                keypad(stdscr, TRUE);
+                curs_set(0);
+                erase();
+                refresh();
+                win = newwin(win_h, win_w, start_y, start_x);
+                keypad(win, TRUE);
+                box(win, 0, 0);
+                mvwprintw(win, 1, 2, "[S] Shop");
+                mvwprintw(win, 1, hp_x, "%s", hp_str);
+                mvwprintw(win, 2, (win_w - 12) / 2, "BATTLE FIELD");
+                mvwprintw(win, row_top - 2, col_left_x,   "TEAM A (Friendly)");
+                mvwprintw(win, row_top - 2, col_right_x,  "TEAM B (Enemy)");
+                // Redraw ships quickly
+                for (int i = 0; i < left_count && i < 3; i++) {
+                    int y = row_top + i * 5;
+                    for (int dx = 0; dx < 16; dx++) {
+                        mvwaddch(win, y,     col_left_x + dx, '-');
+                        mvwaddch(win, y + 3, col_left_x + dx, '-');
+                    }
+                    mvwaddch(win, y + 1, col_left_x, '|');
+                    mvwaddch(win, y + 2, col_left_x, '|');
+                    mvwaddch(win, y + 1, col_left_x + 15, '|');
+                    mvwaddch(win, y + 2, col_left_x + 15, '|');
+                    const char *uname = team_left[i] ? team_left[i] : "unknown";
+                    mvwprintw(win, y + 1, col_left_x + 2, "%.*s", 12, uname);
+                    if (my_username && team_left[i] && strcmp(my_username, team_left[i]) == 0) {
+                        mvwprintw(win, y + 2, col_left_x + 2, "(You)");
+                    }
+                }
+                for (int i = 0; i < right_count && i < 3; i++) {
+                    int y = row_top + i * 5;
+                    for (int dx = 0; dx < 16; dx++) {
+                        mvwaddch(win, y,     col_right_x + dx, '-');
+                        mvwaddch(win, y + 3, col_right_x + dx, '-');
+                    }
+                    mvwaddch(win, y + 1, col_right_x, '|');
+                    mvwaddch(win, y + 2, col_right_x, '|');
+                    mvwaddch(win, y + 1, col_right_x + 15, '|');
+                    mvwaddch(win, y + 2, col_right_x + 15, '|');
+                    const char *uname = team_right[i] ? team_right[i] : "unknown";
+                    mvwprintw(win, y + 1, col_right_x + 2, "%.*s", 12, uname);
+                }
+                mvwprintw(win, win_h - 3, 2, "Up/Down: select enemy | Enter: FIRE | S: Shop | ESC: Back");
+                wrefresh(win);
+                continue;
+            }
+
+            // Success: fill outputs
+            if (out_target_username && out_target_username_size > 0) {
+                strncpy(out_target_username, target_uname, out_target_username_size - 1);
+                out_target_username[out_target_username_size - 1] = '\0';
+            }
+            if (out_weapon_id) *out_weapon_id = weapon_choice; // 0/1/2
+
+            delwin(win);
+            clear();
+            refresh();
+            endwin();
+            return 1; // FIRE
+        }
+    }
 }
 
 #endif
