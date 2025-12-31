@@ -109,6 +109,24 @@ User* findUser(UserTable *ut, const char *username) {
     return NULL;
 }
 
+char* find_username_by_id(UserTable *ut, int user_id) {
+    if (!ut) return NULL;
+
+    // Duyệt qua mảng table
+    for (size_t i = 0; i < ut->size; i++) {
+        User *current = ut->table[i]; 
+        
+
+        while (current) {
+            if ((int)hashFunc(current->username) == user_id) {
+                return current->username;
+            }
+            current = current->next;
+        }
+    }
+    return NULL;
+}
+
 /* ============================================================================
  * USER OPERATIONS
  * ============================================================================ */

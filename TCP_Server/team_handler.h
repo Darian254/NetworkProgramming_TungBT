@@ -82,4 +82,11 @@ int handle_invite_accept(ServerSession *session, const char *team_name);
  */
 int handle_invite_reject(ServerSession *session, const char *team_name);
 
+/**
+ * @brief Handle CHECK_INVITES command
+ * Lists all pending invites for the current user
+ */
+int handle_check_invites(ServerSession *session, char *output_buf, size_t buf_size);
+
+int handle_check_join_requests(ServerSession *session, char *output_buf, size_t buf_size);
 #endif // TEAM_HANDLER_H

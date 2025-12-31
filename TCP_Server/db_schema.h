@@ -193,7 +193,7 @@ typedef struct {
 typedef struct {
     int             request_id;                 // PK, auto-increment
     int             team_id;                    // FK -> TEAMS.team_id
-    int             user_id;                    // FK -> USERS.user_id
+    char            username[MAX_USERNAME];      // Username of requester
     time_t          requested_at;
     RequestStatus   status;                     // pending | accepted | declined
 } JoinRequest;

@@ -412,6 +412,36 @@ void command_routes(int client_sock, char *command) {
         snprintf(response, sizeof(response), "%d\r\n", response_code);
         log_activity("INVITE_REJECT", session->username, session->isLoggedIn, payload, response_code);
     }
+    else if (strcmp(type, "CHECK_INVITES") == 0 || strcmp(type, "GET_INVITES") == 0) {
+        char invite_list[4096] = "";
+        // Giả sử RESP_INVITE_LIST_OK là 206 (hoặc bạn tự define trong config.h)
+        // Nếu chưa có, bạn có thể dùng tạm RESP_OK (200) hoặc số 206 cứng.
+        int code = handle_check_invites(session, invite_list, sizeof(invite_list));
+        
+        // Nếu tìm thấy lời mời (giả sử hàm trả về RESP_OK hoặc 206 khi có dữ liệu)
+        if (strlen(invite_list) > 0) {
+            // Gửi về dạng: "206 TeamA|TeamB|"
+            snprintf(response, sizeof(response), "206 %s\r\n", invite_list);
+            // Lưu ý: 206 là mã ví dụ, hãy đảm bảo Client.c check đúng mã này
+        } else {
+            // Không có lời mời
+            snprintf(response, sizeof(response), "404 No pending invites\r\n");
+        }
+        log_activity("CHECK_INVITES", session->username, session->isLoggedIn, payload, code);
+    }
+    else if (strcmp(type, "CHECK_JOIN_REQUESTS") == 0) {
+        char req_list[4096] = "";
+        response_code = handle_check_join_requests(session, req_list, sizeof(req_list));
+        
+        if (strlen(req_list) > 0) {
+            // Gửi danh sách nếu có (206 là mã ví dụ cho List OK)
+            snprintf(response, sizeof(response), "206 %s\r\n", req_list);
+        } else {
+            // Gửi mã lỗi nếu không có (404)
+            snprintf(response, sizeof(response), "404 No requests\r\n");
+        }
+        log_activity("CHECK_JOIN_REQUESTS", session->username, session->isLoggedIn, payload, response_code);
+    }
 
     // ========== REPAIR ==========
     else if (strcmp(type, "REPAIR") == 0) {

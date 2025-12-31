@@ -96,6 +96,7 @@ typedef enum {
     RESP_KICK_MEMBER_OK = 129,    /**< Member kicked successfully */
     RESP_LOGOUT_OK = 134,         /**< Logout successful */
     RESP_WELCOME = 120,           /**< Initial connection greeting */
+    RESP_OK = 200,              /**< Generic success code */
     RESP_WHOAMI_OK = 201,         /**< Whoami successful */
     RESP_COIN_OK = 202,           /**< Get coin successful */
     RESP_ARMOR_INFO_OK = 203,     /**< Get armor info successful */
