@@ -594,6 +594,19 @@ Match* create_match(int team1_id, int team2_id) {
     
     match_count++;
     
+    // Create a ship for each player in team1
+    for (int i = 0; i < team_member_count; i++) {
+        if (team_members[i].team_id == team1_id) {
+            create_ship(match->match_id, team_members[i].username);
+        }
+    }
+    // Create a ship for each player in team2
+    for (int i = 0; i < team_member_count; i++) {
+        if (team_members[i].team_id == team2_id) {
+            create_ship(match->match_id, team_members[i].username);
+        }
+    }
+    
     return match;  // Return the new match pointer
 }
 
