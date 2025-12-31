@@ -54,6 +54,7 @@ void displayMenu() {
     printf("32. test2/3: Accept invite to team ABC\n");
     printf("33. test5/6: Accept invite to team DEF\n");
     printf("34. Login / Register Menu\n");
+    printf("35. View Match Info\n");
     printf("==================================\n");
     printf("Select an option: ");
 }
@@ -61,7 +62,7 @@ void displayMenu() {
 #ifdef USE_NCURSES
 #include <ncurses.h>
 
-static void get_input_field(WINDOW 6*win, int y, int x, char *buffer, size_t size, int echo) {
+static void get_input_field(WINDOW *win, int y, int x, char *buffer, size_t size, int echo) {
     int pos = 0;
     int ch;
     
@@ -419,8 +420,11 @@ int display_menu_ncurses(void) {
     y++;
     mvwprintw(win, y++, 2, " [AUTHENTICATION MENU]");
     mvwprintw(win, y++, 2, "34. Login / Register Menu");
+    y++;
+    mvwprintw(win, y++, 2, " [MATCH INFO]");
+    mvwprintw(win, y++, 2, "35. View Match Info");
     
-    mvwprintw(win, win_h - 2, 2, "Enter option number (0-34) or ESC to exit: ");
+    mvwprintw(win, win_h - 2, 2, "Enter option number (0-35) or ESC to exit: ");
     
     wrefresh(win);
     
@@ -442,11 +446,11 @@ int display_menu_ncurses(void) {
             if (pos > 0) {
                 input[pos] = '\0';
                 int choice = atoi(input);
-                if (choice >= 0 && choice <= 34) {
+                if (choice >= 0 && choice <= 35) {
                     result = choice;
                     break;
                 } else {
-                    mvwprintw(win, win_h - 1, 2, "Invalid option! Enter 0-34: ");
+                    mvwprintw(win, win_h - 1, 2, "Invalid option! Enter 0-35: ");
                     wclrtoeol(win);
                     wmove(win, win_h - 2, input_x);
                     pos = 0;

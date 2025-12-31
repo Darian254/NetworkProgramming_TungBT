@@ -752,6 +752,33 @@ int main(int argc, char *argv[]) {
                 break;
             }
             
+            // View Match Info
+            case FUNC_MATCH_INFO: {
+                char match_id_str[64];
+                printf("Enter Match ID: ");
+                fflush(stdout);
+                safeInput(match_id_str, sizeof(match_id_str));
+                
+                int match_id = atoi(match_id_str);
+                if (match_id <= 0) {
+                    printf("Invalid match ID.\n");
+                    break;
+                }
+                
+                snprintf(cmd, sizeof(cmd), "MATCH_INFO %d", match_id);
+                if (send_line(sock, cmd) < 0) {
+                    perror("send() error");
+                    break;
+                }
+                
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+                    printf("%s", pretty);
+                }
+                break;
+            }
+            
             default: {
                 printf("Invalid choice, please try again.\n");
                 break;

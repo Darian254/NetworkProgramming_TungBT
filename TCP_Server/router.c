@@ -376,6 +376,24 @@ void command_routes(int client_sock, char *command) {
         log_activity("REPAIR", session->username, session->isLoggedIn, payload, response_code);
     }
 
+    // ========== MATCH INFO ==========
+    else if (strcmp(type, "MATCH_INFO") == 0) {
+        int match_id = -1;
+        if (payload && sscanf(payload, "%d", &match_id) == 1) {
+            char match_info[4096] = {0};
+            response_code = server_handle_match_info(match_id, match_info, sizeof(match_info));
+            if (response_code == RESP_MATCH_INFO_OK) {
+                snprintf(response, sizeof(response), "%d\r\n%s", response_code, match_info);
+            } else {
+                snprintf(response, sizeof(response), "%d\r\n", response_code);
+            }
+        } else {
+            response_code = RESP_SYNTAX_ERROR;
+            snprintf(response, sizeof(response), "%d\r\n", response_code);
+        }
+        log_activity("MATCH_INFO", session->username, session->isLoggedIn, payload, response_code);
+    }
+
     // ========== Unknown Command ==========
     else {
         // TODO: Send syntax error for unknown commands

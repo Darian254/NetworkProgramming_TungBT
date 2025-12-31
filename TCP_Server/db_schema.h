@@ -380,7 +380,7 @@ bool can_end_match(int match_id, int *winner_team_id);
 int get_match_result(int match_id);
 
 /* Ship operations (in-match only) */
-// Ship* find_ship(int match_id, const char *username);
+Ship* find_ship(int match_id, const char *username);
 // Ship* create_ship(int match_id, const char *username);
 void delete_ships_by_match(int match_id);
 // int ship_take_damage(Ship *s, int damage);

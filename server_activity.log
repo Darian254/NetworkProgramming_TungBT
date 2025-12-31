@@ -248,3 +248,5 @@
 2025-12-31 15:45:55 [INFO] action=LOGIN user=- input="ducanh Admin@2024" code=110 message="You have logged in successfully."
 2025-12-31 15:55:02 [WARN] action=LOGIN user=- input="a a" code=312 message="Account does not exist."
 2025-12-31 15:55:09 [WARN] action=REGISTER user=- input="asd a" code=403 message="Weak password: minimum 8 characters required, must include uppercase, number, special character."
+2025-12-31 16:01:22 [INFO] action=LOGIN user=ducanh input="ducanh Admin@2024" code=110 message="You have logged in successfully."
+2025-12-31 16:01:25 [INFO] action=WHOAMI user=ducanh input="" code=201 message="Current user identified."

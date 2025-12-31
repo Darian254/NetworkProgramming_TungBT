@@ -63,7 +63,8 @@ typedef enum {
     FUNC_ACCEPT_DEF = 33,         /**< test5/test6: Accept invite to team def */
 
     // Authentication menu
-    FUNC_AUTHENTICATION_MENU = 34    /**< Authentication menu */
+    FUNC_AUTHENTICATION_MENU = 34,    /**< Authentication menu */
+    FUNC_MATCH_INFO = 35         /**< View detailed match information */
 
 } FunctionId;
 
@@ -95,6 +96,7 @@ typedef enum {
     RESP_ARMOR_INFO_OK = 203,     /**< Get armor info successful */
     RESP_BUY_ITEM_OK = 334,       /**< Buy item successful */
     RESP_END_MATCH_OK = 140,        /**< Match ended successfully */
+    RESP_MATCH_INFO_OK = 206,     /**< Match info retrieved successfully */
     
     RESP_REPAIR_OK = 132,         /**< Repair successful */
 
@@ -225,6 +227,7 @@ static const ResponseMessage RESPONSE_MESSAGES[] = {
     {RESP_BUY_ITEM_OK,       "Item purchased successfully."},
     {RESP_LIST_TEAMS_OK,    "Team list retrieved successfully."},
     {RESP_TEAM_MEMBERS_LIST_OK,   "Team members list retrieved successfully."},
+    {RESP_MATCH_INFO_OK,     "Match information retrieved successfully."},
     {RESP_REPAIR_OK,         "Ship repaired successfully."},
     
     /* Command/Syntax errors */

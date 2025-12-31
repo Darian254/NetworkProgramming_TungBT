@@ -383,4 +383,15 @@ bool update_session_by_socket(int socket_fd, ServerSession *session);
  */
 int get_active_session_count(void);
 
+/**
+ * @brief Handle MATCH_INFO command - retrieves detailed match information
+ * @param match_id Match ID to query
+ * @param output Buffer to store formatted match info
+ * @param output_size Size of output buffer
+ * @return Response code:
+ *   - RESP_MATCH_INFO_OK (206): Success
+ *   - RESP_MATCH_NOT_FOUND (414): Match not found
+ */
+int server_handle_match_info(int match_id, char *output, size_t output_size);
+
 #endif
