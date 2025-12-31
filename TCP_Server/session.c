@@ -145,16 +145,7 @@ int server_handle_buyarmor(ServerSession *session, UserTable *ut, int armor_type
         return RESP_NOT_LOGGED;
     }
     
-    int match_id = session->current_match_id;
-    // khong can thiet
-    // if (match_id <= 0) {
-    //     /* Fallback */
-    //     match_id = find_current_match_by_username(session->username);
-    //     if (match_id > 0) {
-    //         session->current_match_id = match_id; 
-    //     }
-    // }
-    
+    int match_id = session->current_match_id;    
     if (match_id <= 0) {
         return RESP_NOT_IN_MATCH;
     }

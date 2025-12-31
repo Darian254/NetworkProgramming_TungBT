@@ -453,49 +453,62 @@ ResponseCode ship_buy_armor(UserTable *user_table, Ship *ship, const char *usern
     
     // 3.1: Kiểm tra loại giáp tồn tại
     int price = get_armor_price(type);
+    printf("[DEBUG] ship_buy_armor: price: %d\n", price);
     int value = get_armor_value(type);
+    printf("[DEBUG] ship_buy_armor: value: %d\n", value);
     if (price == 0 || value == 0) {
         return RESP_ARMOR_NOT_FOUND;  // 520
     }
     
     // 3.2: Kiểm tra đủ coin
     User *u = findUser(user_table, username);
+    printf("[DEBUG] ship_buy_armor: u: %s\n", u->username);
     if (!u) return RESP_INTERNAL_ERROR;  // 500 
     
+
     if (u->coin < price) {
         return RESP_NOT_ENOUGH_COIN;  // 521
     }
+
     
     // 3.3: Kiểm tra slot giáp (tối đa 2 lớp)
     int target_slot = 0;  // 0 = không có slot trống
+    printf("[DEBUG] ship_buy_armor: ship->armor_slot_1_type: %d\n", ship->armor_slot_1_type);
+    printf("[DEBUG] ship_buy_armor: ship->armor_slot_2_type: %d\n", ship->armor_slot_2_type);
     if (ship->armor_slot_1_type == ARMOR_NONE) { 
         target_slot = 1;
     } else if (ship->armor_slot_2_type == ARMOR_NONE) {
         target_slot = 2;
     }
-    
+    printf("[DEBUG] ship_buy_armor: target_slot: %d\n", target_slot);
     if (target_slot == 0) {
         return RESP_ARMOR_SLOT_FULL;  // 522
     }  
-    
+    printf("[DEBUG] ship_buy_armor: target_slot == 0\n");
     /* ========== XỬ LÝ LOGIC ========== */
     // 4.1: Trừ coin 
     // updateUserCoin already got its own mutex lock inside
     int coin_result = updateUserCoin(user_table, username, -price);
+    printf("[DEBUG] ship_buy_armor: coin_result: %d\n", coin_result);
     if (coin_result != 0) {
         return RESP_DATABASE_ERROR;  // 501 - lỗi khi trừ coin
     }
-    
+    printf("[DEBUG] ship_buy_armor: coin_result != 0\n");
     // 4.2: Gắn giáp vào tàu
     if (target_slot == 1) {
         ship->armor_slot_1_type = type;
         ship->armor_slot_1_value = value;
+        printf("[DEBUG] ship_buy_armor: ship->armor_slot_1_type: %d\n", ship->armor_slot_1_type);
+        printf("[DEBUG] ship_buy_armor: ship->armor_slot_1_value: %d\n", ship->armor_slot_1_value);
     } else {
         ship->armor_slot_2_type = type;
         ship->armor_slot_2_value = value;
+        printf("[DEBUG] ship_buy_armor: ship->armor_slot_2_type: %d\n", ship->armor_slot_2_type);
+        printf("[DEBUG] ship_buy_armor: ship->armor_slot_2_value: %d\n", ship->armor_slot_2_value);
     }
-    
+    printf("[DEBUG] ship_buy_armor: target_slot == 1\n");
     // Bước 5 (log) và Bước 6 (phản hồi) sẽ do handler xử lý
+    printf("[DEBUG] ship_buy_armor: RESP_BUY_ITEM_OK\n");
     return RESP_BUY_ITEM_OK;  // 334
 }
 

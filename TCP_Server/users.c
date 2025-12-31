@@ -143,7 +143,6 @@ User* createUser(UserTable *ut, const char *username, const char *password_hash)
     return user;
 }
 
-// TODO : updateUserCoin should also write to file?
 int updateUserCoin(UserTable *ut, const char *username, long delta) {
     User *user = findUser(ut, username);
     if (!user) return -1;
@@ -154,6 +153,9 @@ int updateUserCoin(UserTable *ut, const char *username, long delta) {
     
     user->coin += delta;
     user->updated_at = time(NULL);
+    
+    // Persist to file
+    saveUsers(ut, USERS_FILE);
 
     return 0;
 }

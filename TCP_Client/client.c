@@ -884,7 +884,19 @@ int main(int argc, char *argv[]) {
                     }
                     int armor_sel = shop_armor_menu_ncurses(coin);
                     if (armor_sel == -1) break; // cancelled
+                    
+                    // Send BUYARMOR command
                     int armor_type = (armor_sel == 0) ? 1 : 2; // 1 BASIC, 2 ENHANCED
+                    snprintf(cmd, sizeof(cmd), "BUYARMOR %d", armor_type);
+                    if (send_line(sock, cmd) < 0) {
+                        perror("send() error");
+                        break;
+                    }
+                    if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                        char pretty[1024];
+                        beautify_result(recvbuf, pretty, sizeof(pretty));
+                        show_message_ncurses("Buy Armor Result", pretty);
+                    }
                 } else if (shop_sel == 1) {
                     // Buy Weapon flow
                     // Fetch current coin from server
@@ -898,8 +910,20 @@ int main(int argc, char *argv[]) {
                     }
                     int weapon_sel = shop_weapon_menu_ncurses(coin);
                     if (weapon_sel == -1) break; // cancelled
+                    
+                    // Send BUY_WEAPON command
                     // Map: 0=CANNON, 1=LASER, 2=MISSILE (matches server WeaponType)
                     int weapon_type = weapon_sel;
+                    snprintf(cmd, sizeof(cmd), "BUY_WEAPON %d", weapon_type);
+                    if (send_line(sock, cmd) < 0) {
+                        perror("send() error");
+                        break;
+                    }
+                    if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                        char pretty[1024];
+                        beautify_result(recvbuf, pretty, sizeof(pretty));
+                        show_message_ncurses("Buy Weapon Result", pretty);
+                    }
                 }
 #else
                 printf("Shop menu is only available with ncurses.\n");
