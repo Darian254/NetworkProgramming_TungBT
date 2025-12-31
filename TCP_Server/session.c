@@ -5,6 +5,7 @@
 #include "util.h"
 #include "config.h"
 #include "hash.h"
+#include <unistd.h>
 #include "users.h"
 #include "users_io.h"
 #include "db_schema.h"  // For FILE_USERS and function declarations
@@ -12,6 +13,10 @@
 /* Global session manager with mutex for thread safety */
 static SessionManager session_mgr = {NULL, 0};
 
+//từ db.c
+extern TreasureChest active_chests[];
+extern ChestPuzzle puzzles[];
+extern WeaponTemplate weapon_templates[];
 void initServerSession(ServerSession *s) {
     if (!s) return;
     s->isLoggedIn = false;
@@ -420,102 +425,136 @@ int server_handle_get_match_result(ServerSession *session, int match_id) {
 }
 
 
-// void process_fire_request(int attacker_id, int target_id, int weapon_id) {
-//     Ship* target = find_ship_by_id(target_id);
-//     Ship* attacker = find_ship_by_id(attacker_id);
-//     int result_code = 0;
+int server_handle_fire(ServerSession *session,
+                       int target_id,
+                       int weapon_type,
+                       FireResult *result)
+{
+    if (!session || !session->isLoggedIn)
+        return RESP_NOT_LOGGED;
 
-//     // Kiểm tra tính hợp lệ của mục tiêu và đồng đội
-//     if (!target || !attacker || target->team_id == attacker->team_id) {
-//         send_error_response(attacker->socket_fd, ERROR_INVALID_TARGET, "Invalid target ID or friendly fire.");
-//         return; 
-//     }
+    if (session->current_match_id <= 0)
+        return RESP_NOT_IN_MATCH;
 
-//     result_code = calculate_and_update_damage(attacker, target, weapon_id);
+    Ship *attacker = find_ship(
+        session->current_match_id,
+        session->username
+    );
 
-//     // Xử lý báo lỗi nếu có
-//     if (result_code != 0) {
-//         char* error_msg = "Fire Failed";
-//         if (result_code == ERROR_OUT_OF_AMMO) error_msg = "Out of Ammo";
-//         else if (result_code == ERROR_WEAPON_NOT_EQUIPPED) error_msg = "Weapon Not Equipped (You dont have this ID)";
-//         else if (result_code == ERROR_TARGET_DESTROYED) error_msg = "Target Already Destroyed";
-        
-//         send_error_response(attacker->socket_fd, result_code, error_msg);
-//     }
-// }
+    Ship *target = find_ship_by_id(target_id);
+
+    if (!attacker || !target ) {
+        return RESP_INVALID_TARGET;
+    }
+    //Lấy team của người bắn từ session
+    int attacker_team_id = session->current_team_id;
+    //Lấy team của mục tiêu thông qua player_id
+    int target_team_id = get_team_id_by_player_id(target->player_id);
+    //Kiểm tra bắn đồng đội
+    if (attacker_team_id == target_team_id) {
+        return RESP_INVALID_TARGET; // Không bắn phe mình
+    }
+
+    int rc = calculate_and_update_damage(attacker, target, weapon_type, result);
+
+    if (rc != 0) {
+        const char *msg = "Fire Failed";
+        if (rc == RESP_OUT_OF_AMMO) msg = "Out of Ammo";
+        else if (rc == RESP_WEAPON_NOT_EQUIPPED) msg = "Weapon Not Equipped";
+        else if (rc == RESP_TARGET_DESTROYED) msg = "Target Already Destroyed";
+
+        send_error_response(session->socket_fd, rc, msg);
+        return rc;
+    }
+
+    return RESP_FIRE_OK;
+}
+
+
 
 // Tính toán sát thương và trừ đạn
-// int calculate_and_update_damage(Ship* attacker, Ship* target, int weapon_id) {
+int calculate_and_update_damage(Ship* attacker, Ship* target, int weapon_type, FireResult *out) {
     
-//     // TÌM VŨ KHÍ THEO ID
-//     int index = -1;
-//     for (int i = 0; i < MAX_WEAPONS; i++) {
-//         // Tìm thấy ID vũ khí trùng khớp trong các slot
-//         if (attacker->weapons[i].weapon_id == weapon_id) {
-//             index = i;
-//             break; 
-//         }
-//     }
+    int damage = 0;
 
-//     // Nếu không tìm thấy vũ khí ID này trên tàu
-//     if (index == -1) {
-//         return ERROR_WEAPON_NOT_EQUIPPED; 
-//     }
-    
-//     EquippedWeapon* eq_weapon = &attacker->weapons[index];
-
-//     // KIỂM TRA ĐẠN 
-//     if (eq_weapon->current_ammo <= 0) {
-//         return ERROR_OUT_OF_AMMO; 
-//     }
-
-//     // LẤY THÔNG SỐ SÁT THƯƠNG
-//     WeaponTemplate* template = get_weapon_template(eq_weapon->weapon_id);
-//     if (!template) return 500; // Lỗi hệ thống 
-
-//     int base_damage = template->damage;
-    
-//     // TÍNH TOÁN
-//     eq_weapon->current_ammo--; // Trừ 1 viên đạn
-    
-//     int damage_to_deal = base_damage;
-//     int total_damage_dealt = 0;
-//     int hp_loss = 0;
-    
-//     // Armor Logic
-//     if (target->armor > 0) {
-//         if (damage_to_deal <= target->armor) {
-//             target->armor -= damage_to_deal; 
-//             total_damage_dealt = damage_to_deal;
-//         } else {
-//             int damage_spillover = damage_to_deal - target->armor;
-//             target->armor = 0; // Giáp vỡ
+    // Check vũ khí//dam,name,..
+    switch (weapon_type) {
+        case WEAPON_CANNON: // 0
+            // Kiểm tra biến cannon_ammo trong struct Ship
+            if (attacker->cannon_ammo <= 0) return RESP_OUT_OF_AMMO;
             
-//             hp_loss = damage_spillover;
-//             target->health -= hp_loss; // Trừ vào máu phần dư
-//             total_damage_dealt = damage_to_deal;
-//         }
-//     } else {
-//         hp_loss = damage_to_deal;
-//         target->health -= hp_loss;
-//         total_damage_dealt = damage_to_deal;
-//     }
+            attacker->cannon_ammo--;       // Trừ đạn trực tiếp
+            damage = CANNON_DAMAGE;        // Lấy damage = 10 từ config
+            break;
 
-//     if (target->health < 0) {
-//         target->health = 0;
-//     }
+        case WEAPON_LASER: // 1
+            // Kiểm tra biến laser_count
+            if (attacker->laser_count <= 0) return RESP_OUT_OF_AMMO;
+            
+            attacker->laser_count--;       // Trừ số lần bắn
+            damage = LASER_DAMAGE;         // Lấy damage = 100
+            break;
 
-//     // UPDATE
-//     update_ship_state(attacker); // Lưu số đạn mới
-//     update_ship_state(target);   // Lưu HP/Armor mới
+        case WEAPON_MISSILE: // 2
+            // Kiểm tra biến missile_count
+            if (attacker->missile_count <= 0) return RESP_OUT_OF_AMMO;
+            
+            attacker->missile_count--;     // Trừ tên lửa
+            damage = MISSILE_DAMAGE;       // Lấy damage = 800
+            break;
 
-   
-//     send_fire_ok(attacker->socket_fd, target->ship_id, total_damage_dealt, target->health, target->armor);
-//     broadcast_fire_event(attacker->ship_id, target->ship_id, total_damage_dealt, target->health, target->armor);
-    
-//     return 0; 
-// }
+        default:
+            return RESP_WEAPON_NOT_EQUIPPED;
+    }
 
+    // Trừ giáp và máu
+    int damage_remaining = damage;
+    int total_damage_dealt = damage; 
+
+    // Kiểm tra giáp
+    if (target->armor_slot_2_value > 0) {
+        // Check giáp 2
+        if (target->armor_slot_2_value >= damage_remaining) {
+            // Giáp chịu hết sát thương
+            target->armor_slot_2_value -= damage_remaining;
+            damage_remaining = 0;
+        } else {
+            // Giáp vỡ, sát thương dư trừ vào HP
+            damage_remaining -= target->armor_slot_2_value;
+            target->armor_slot_2_value = 0;
+            target->armor_slot_2_type = ARMOR_NONE; // Hủy giáp
+        }
+    } 
+    else if (target->armor_slot_1_value > 0) {
+        // Không có giáp 2, check giáp 1
+        if (target->armor_slot_1_value >= damage_remaining) {
+            // Giáp chịu hết sát thương
+            target->armor_slot_1_value -= damage_remaining;
+            damage_remaining = 0;
+        } else {
+            // Giáp vỡ, sát thương dư trừ vào HP
+            damage_remaining -= target->armor_slot_1_value;
+            target->armor_slot_1_value = 0;
+            target->armor_slot_1_type = ARMOR_NONE; // Hủy giáp
+        }
+    }
+  
+    // Không có giáp
+    if (damage_remaining > 0) {
+        target->hp -= damage_remaining;
+        if (target->hp < 0) target->hp = 0;
+    }
+    //Ghi kết quả
+    if (out) {
+        out->attacker_id = attacker->player_id;
+        out->target_id = target->player_id;
+        out->damage_dealt = total_damage_dealt;
+        out->target_remaining_hp = target->hp;
+        out->target_remaining_armor = target->armor_slot_1_value + target->armor_slot_2_value;
+    }
+
+    return 0; // Thành công
+}
 int server_handle_send_challenge(ServerSession *session, int target_team_id, int *new_challenge_id) {
     if (!session || !session->isLoggedIn) return 315; // RESP_NOT_LOGGED
 
@@ -580,91 +619,95 @@ int server_handle_cancel_challenge(ServerSession *session, int challenge_id) {
     return RESP_CHALLENGE_CANCELED;
 }
 
-// //Tạo rương 
-// int server_spawn_chest(int match_id) {
-//     srand(time(NULL));//Sinh ngẫu nhiên = nowtime
-//     int idx = match_id % MAX_TEAMS;
+//Tạo rương 
+int server_spawn_chest(int match_id) {
+    srand(time(NULL));//Sinh ngẫu nhiên = nowtime
+    int idx = match_id % MAX_TEAMS;
     
-//     active_chests[idx].chest_id = rand() % 1000 + 1; // (1->1000)
-//     active_chests[idx].match_id = match_id;
+    active_chests[idx].chest_id = rand() % 1000 + 1; // (1->1000)
+    active_chests[idx].match_id = match_id;
     
-//     // Ngẫu nhiên "loại rương" theo tỷ lệ
-//     int r = rand() % 100;//tạo ngẫu nhiên từ 0->99
-//     if (r < 60) active_chests[idx].type = CHEST_BRONZE;      // 100 coin
-//     else if (r < 90) active_chests[idx].type = CHEST_SILVER; // 500 coin
-//     else active_chests[idx].type = CHEST_GOLD;               // 2000 coin
+    // Ngẫu nhiên "loại rương" theo tỷ lệ
+    int r = rand() % 100;//tạo ngẫu nhiên từ 0->99
+    if (r < 60) active_chests[idx].type = CHEST_BRONZE;      // 100 coin
+    else if (r < 90) active_chests[idx].type = CHEST_SILVER; // 500 coin
+    else active_chests[idx].type = CHEST_GOLD;               // 2000 coin
 
-//     active_chests[idx].position_x = MAP_WIDTH / 2; 
-//     active_chests[idx].position_y = MAP_HEIGHT / 2;
-//     active_chests[idx].is_collected = false;
+    active_chests[idx].position_x = MAP_WIDTH / 2; 
+    active_chests[idx].position_y = MAP_HEIGHT / 2;
+    active_chests[idx].is_collected = false;
 
 
-//     return active_chests[idx].chest_id;
-// }
+    return active_chests[idx].chest_id;
+}
 
-// //Sinh rương và tb all
-// void broadcast_chest_drop(int match_id) {
-//     int c_id = server_spawn_chest(match_id);
-//     TreasureChest *chest = &active_chests[match_id % MAX_TEAMS];
+//Sinh rương và tb all
+void broadcast_chest_drop(int match_id) {
+    int c_id = server_spawn_chest(match_id);
+    TreasureChest *chest = &active_chests[match_id % MAX_TEAMS];
 
-//     char notify[BUFF_SIZE];
-//     // Protocol: 140 <chest_id> <type> <x> <y>
-//     snprintf(notify, sizeof(notify), "%d %d %d %d %d\r\n", 
-//              RESP_CHEST_DROP_OK, c_id, (int)chest->type, chest->position_x, chest->position_y);
-//     // Duyệt session (login, match_id)
+    char notify[BUFF_SIZE];
+    // Protocol: 140 <chest_id> <type> <x> <y>
+    snprintf(notify, sizeof(notify), "%d %d %d %d %d\r\n", 
+             RESP_CHEST_DROP_OK, c_id, (int)chest->type, chest->position_x, chest->position_y);
+    // Duyệt session (login, match_id)
   
-//     printf("[SERVER INFO] Chest %d dropped in match %d\n", c_id, match_id);
-// }
+    printf("[SERVER INFO] Chest %d dropped in match %d\n", c_id, match_id);
+}
 
-// // Hàm lấy câu hỏi dựa trên loại rương
-// void get_chest_puzzle(ChestType type, char *q_out, char *a_out) {
-//     strcpy(q_out, puzzles[(int)type].question);
-//     strcpy(a_out, puzzles[(int)type].answer);
-// }
+// Hàm lấy câu hỏi dựa trên loại rương
+void get_chest_puzzle(ChestType type, char *q_out, char *a_out) {
+    strcpy(q_out, puzzles[(int)type].question);
+    strcpy(a_out, puzzles[(int)type].answer);
+}
 
-// //Tìm rương trong trận đấu theo id
-// TreasureChest* find_chest_by_id_in_match(int match_id, int chest_id) {
-//     int idx = match_id % MAX_TEAMS;
-//     if (active_chests[idx].chest_id == chest_id && active_chests[idx].match_id == match_id) {
-//         return &active_chests[idx];
-//     }
-//     return NULL;
-// }
+//Tìm rương trong trận đấu theo id
+TreasureChest* find_chest_by_id_in_match(int match_id, int chest_id) {
+    int idx = match_id % MAX_TEAMS;
+    if (active_chests[idx].chest_id == chest_id && active_chests[idx].match_id == match_id) {
+        return &active_chests[idx];
+    }
+    return NULL;
+}
 
-// int server_handle_open_chest(ServerSession *session, int chest_id, const char *answer) {
-//     if (!session || !session->isLoggedIn) return 315;
+int server_handle_open_chest(ServerSession *session, int chest_id, const char *answer) {
+    if (!session || !session->isLoggedIn) return 315;
 
-//     TreasureChest *chest = find_chest_by_id_in_match(session->current_match_id, chest_id);
-//     if (!chest) return 332; // CHEST_NOT_FOUND
-//     if (chest->is_collected) return 339; // OPEN_CHEST_FAIL
+    TreasureChest *chest = find_chest_by_id_in_match(session->current_match_id, chest_id);
+    if (!chest) return 332; // CHEST_NOT_FOUND
+    if (chest->is_collected) return 339; // OPEN_CHEST_FAIL
 
-//     char q[256], a[64];
-//     get_chest_puzzle(chest->type, q, a);
+    char q[256], a[64];
+    get_chest_puzzle(chest->type, q, a);
     
-//     if (strcasecmp(answer, a) != 0) {
-//         return 442; // RESP_WRONG_ANSWER
-//     }
+    if (strcasecmp(answer, a) != 0) {
+        return 442; // RESP_WRONG_ANSWER
+    }
 
-//     // Trả lời đúng
-//     chest->is_collected = true;
-//     int reward = (chest->type == CHEST_BRONZE) ? 100 : (chest->type == CHEST_SILVER ? 500 : 2000);
-//     //Cập nhập coin
-//     session->coins += reward; 
-//     int current_player_coins = session->coins;
+    // Trả lời đúng
+    chest->is_collected = true;
+    int reward = (chest->type == CHEST_BRONZE) ? 100 : (chest->type == CHEST_SILVER ? 500 : 2000);
+    //Cập nhập coin
+    session->coins += reward; 
+    int current_player_coins = session->coins;
 
-//     // Gửi phản hồi thành công cho người mở rương 
-//     char res[BUFF_SIZE];
-//     snprintf(res, sizeof(res), "127 CHEST_OK %d %d %d 2\n{}\r\n", chest_id, reward, current_player_coins);
+    // Gửi phản hồi thành công cho người mở rương 
+    char res[BUFF_SIZE];
+    snprintf(res, sizeof(res), "127 CHEST_OK %d %d %d 2\n{}\r\n", chest_id, reward, current_player_coins);
     
 
-//     // Thông báo cho tất cả mọi người trong trận đấu (Broadcast)
-//     char notify[BUFF_SIZE];
-//     snprintf(notify, sizeof(notify), "210 CHEST_COLLECTED %s %d\r\n", session->username, chest_id);
+    // Thông báo cho tất cả mọi người trong trận đấu (Broadcast)
+    char notify[BUFF_SIZE];
+    snprintf(notify, sizeof(notify), "210 CHEST_COLLECTED %s %d\r\n", session->username, chest_id);
 
-//     return 127;
+    return 127;
 
 
-// }
+}
+
+
+
+  
 /* ====== Session Manager Implementation ====== */
 
 void init_session_manager(void) {
@@ -683,7 +726,41 @@ void cleanup_session_manager(void) {
     session_mgr.head = NULL;
     session_mgr.count = 0;
 }
+ 
+// Hàm gửi phản hồi lỗi nhanh qua socket
+void send_error_response(int socket_fd, int error_code, const char *details) {
+    char buffer[512];
+    // Tạo chuỗi phản hồi: "Mã_Lỗi Thông_Điệp\r\n"
+    snprintf(buffer, sizeof(buffer), "%d %s\r\n", error_code, details ? details : "UNKNOWN_ERROR");
+    
+    if (socket_fd > 0) {
+        (void)write(socket_fd, buffer, strlen(buffer));
+    }
+}
+void broadcast_fire_event(int attacker_id, int target_id, int damage_dealt, int target_remaining_hp, int target_remaining_armor) {
+    //Tìm trận đấu (match_id) dựa vào người bắn
+    Ship *attacker_ship = find_ship_by_id(attacker_id);
+    if (!attacker_ship) return;
+    
+    int match_id = attacker_ship->match_id;
 
+    //Tạo bản tin thông báo (Protocol 131)
+    char msg[512];
+    snprintf(msg, sizeof(msg), "131 FIRE_EVENT %d %d %d %d %d\r\n", 
+             attacker_id, target_id, damage_dealt, target_remaining_hp, target_remaining_armor);
+
+    // Duyệt danh sách session và gửi cho những người CÙNG TRẬN ĐẤU
+    // pthread_mutex_lock(&session_mutex);
+    SessionNode *current = session_mgr.head;
+    while (current != NULL) {
+        // Chỉ gửi nếu đã login và đang ở trong cùng match_id
+        if (current->session.isLoggedIn && current->session.current_match_id == match_id) {
+            (void)write(current->session.socket_fd, msg, strlen(msg));
+        }
+        current = current->next;
+    }
+    // pthread_mutex_unlock(&session_mutex);
+}
 SessionNode *find_session_by_username(const char *username) {
     if (!username) return NULL;
     

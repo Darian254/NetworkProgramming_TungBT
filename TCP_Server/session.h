@@ -36,7 +36,7 @@ typedef struct {
     struct sockaddr_in client_addr; /**< Client address */
     int current_team_id;        /**< Current team ID, -1 if not in team */
     int current_match_id;       /**< Current match ID, -1 if not in match */
-    int coin; //Lượng thêm
+    int coins; //Lượng thêm
 } ServerSession;
 
 /**
@@ -243,8 +243,10 @@ int server_handle_end_match(ServerSession *session, int match_id);
 
 
 
-void process_fire_request(int attacker_id, int target_id, int weapon_id);
-int calculate_and_update_damage(Ship* attacker, Ship* target, int weapon_id);
+int calculate_and_update_damage(Ship* attacker, Ship* target, int weapon_id, FireResult *out);
+void send_error_response(int socket_fd, int error_code, const char *details);
+void send_fire_ok(int attacker_socket, int target_id, int damage, int hp, int armor);
+void broadcast_fire_event(int attacker_id, int target_id, int dam, int hp, int armor);
 
 
 int server_handle_fire(ServerSession *session, int target_id, int weapon_id, FireResult *result);
@@ -296,7 +298,8 @@ void broadcast_chest_drop(int match_id);
  * @param chest_id ID rương muốn mở
  * @param answer Câu trả lời trắc nghiệm hoặc ngắn
  */
-int server_handle_open_chest(ServerSession *session, int chest_id, const char *answer);
+
+
 
 int server_handle_open_chest(ServerSession *session, int chest_id, const char *answer);
 void get_chest_puzzle(ChestType type, char *q_out, char *a_out);

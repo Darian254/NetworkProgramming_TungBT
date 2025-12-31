@@ -60,7 +60,6 @@ int num_active_ships = 0;
 UserTable *g_user_table = NULL;
 
 TreasureChest active_chests[MAX_TEAMS]; 
-
 ChestPuzzle puzzles[] = {
     {"1 + 1 = ?", "2"},             // Đồng
     {"Thủ đô của Việt Nam?", "Ha Noi"}, // Bạc
@@ -73,6 +72,7 @@ WeaponTemplate weapon_templates[] = {
     {3, "Tên lửa", 800, 2000, 1}
 };
 
+ 
 
 /* ============================================================================
  * AUTO-INCREMENT IDs
@@ -188,15 +188,16 @@ int get_armor_value(ArmorType type) {
     }
 }
 
-// //Tìm tàu theo id
-// Ship* find_ship_by_id(int ship_id) {
-//     for (int i = 0; i < num_active_ships; i++) {
-//         if (active_ships[i].ship_id == ship_id) {
-//             return &active_ships[i];
-//         }
-//     }
-//     return NULL;
-// }
+//Tìm tàu theo id
+Ship* find_ship_by_id(int target_id) {
+    // Duyệt mảng ships chính 
+    for (int i = 0; i < ship_count; i++) {
+        if (ships[i].player_id == target_id) {
+            return &ships[i];
+        }
+    }
+    return NULL;
+}
 
 
 // //Lấy template vũ khí
@@ -210,11 +211,11 @@ int get_armor_value(ArmorType type) {
 // }
 
 
-// void update_ship_state(Ship* ship) {
-//     if (ship->hp == 0) {
-//         printf("[DEBUG] Tàu %d đã bị phá hủy!\n", ship->player_id);
-//     }
-// }
+void update_ship_state(Ship* ship) {
+    if (ship->hp == 0) {
+        printf("[DEBUG] Tàu %d đã bị phá hủy!\n", ship->player_id);
+    }
+}
 
 
 /* ============================================================================
@@ -434,6 +435,15 @@ void delete_ships_by_match(int match_id) {
 //     return s->hp;
 // }
 
+int get_team_id_by_player_id(int player_id) {
+    // Duyệt qua danh sách thành viên để tìm user_id khớp
+    for (int i = 0; i < team_member_count; i++) {
+        if (team_members[i].user_id == player_id) {
+            return team_members[i].team_id;
+        }
+    }
+    return -1; // Không tìm thấy
+}
 /**
  * Buy armor for ship (with mutex)
  * 
@@ -662,10 +672,26 @@ int get_match_result(int match_id) {
     return match->winner_team_id;
 }
 
-/* ============================================================================
- * CHALLENGE OPERATIONS
- * ============================================================================ */
 
+
+
+// Hàm tạo bản ghi thách đấu
+int create_challenge_record(int sender_team_id, int target_team_id) {
+    if (challenge_count >= MAX_CHALLENGES) return -1;
+    
+    Challenge *ch = &challenges[challenge_count];
+    ch->challenge_id = next_challenge_id++;
+    ch->sender_team_id = sender_team_id;
+    ch->target_team_id = target_team_id;
+    ch->created_at = time(NULL);
+    ch->status = CHALLENGE_PENDING;
+    ch->responded_at = 0;
+    
+    challenge_count++;
+    return ch->challenge_id;
+}
+
+// Hàm tìm bản ghi thách đấu
 Challenge* find_challenge_by_id(int challenge_id) {
     if (challenge_id <= 0) return NULL;
     
@@ -676,20 +702,3 @@ Challenge* find_challenge_by_id(int challenge_id) {
     }
     return NULL;
 }
-
-int create_challenge_record(int sender_team_id, int target_team_id) {
-    if (sender_team_id <= 0 || target_team_id <= 0) return -1;
-    if (challenge_count >= MAX_CHALLENGES) return -1;
-    
-    Challenge *ch = &challenges[challenge_count];
-    ch->challenge_id = next_challenge_id++;
-    ch->sender_team_id = sender_team_id;
-    ch->target_team_id = target_team_id;
-    ch->created_at = time(NULL);
-    ch->status = STATUS_PENDING;
-    ch->responded_at = 0;
-    challenge_count++;
-    
-    return ch->challenge_id;
-}
-

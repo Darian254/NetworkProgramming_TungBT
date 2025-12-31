@@ -58,6 +58,10 @@ void displayMenu() {
     printf("36. Shop Menu\n");
     printf("37. Buy Weapon\n");
     printf("38. Get Weapon Info\n");
+    printf(" [GAME ACTIONS]\n");
+    printf("39. Fire (Attack)\n");
+    printf("40. Challenge Team\n");
+    printf("41. Open Chest\n");
     printf("==================================\n");
     printf("Select an option: ");
 }
