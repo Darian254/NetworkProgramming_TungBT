@@ -1047,6 +1047,13 @@ int main(int argc, char *argv[]) {
                     if (weapon_sel == -1) break; // cancelled
                     // Map: 0=CANNON, 1=LASER, 2=MISSILE (matches server WeaponType)
                     int weapon_type = weapon_sel;
+                    snprintf(cmd, sizeof(cmd), "BUY_WEAPON %d", weapon_type);
+                    if (send_line(sock, cmd) < 0) break;
+                    if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                        char pretty[1024];
+                        beautify_result(recvbuf, pretty, sizeof(pretty));
+                        printf("%s", pretty);
+                    }
                 }
 #else
                 printf("Shop menu is only available with ncurses.\n");
