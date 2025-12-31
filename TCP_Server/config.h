@@ -46,7 +46,21 @@ typedef enum {
     FUNC_END_MATCH = 22,        /**< End current match */
 
     // TODO: Repair HP - fix later
-    FUNC_REPAIR = 23       /**< Repair HP */
+    FUNC_REPAIR = 23,       /**< Repair HP */
+    
+    // Quick login options
+    FUNC_QUICK_LOGIN_TEST1 = 24,
+    FUNC_QUICK_LOGIN_TEST2 = 25,
+    FUNC_QUICK_LOGIN_TEST3 = 26,
+    FUNC_QUICK_LOGIN_TEST4 = 27,
+    FUNC_QUICK_LOGIN_TEST5 = 28,
+    FUNC_QUICK_LOGIN_TEST6 = 29,
+    
+    // Quick team setup
+    FUNC_SETUP_TEAM_ABC = 30,    /**< test1: Create team abc and invite test2, test3 */
+    FUNC_SETUP_TEAM_DEF = 31,    /**< test4: Create team def and invite test5, test6 */
+    FUNC_ACCEPT_ABC = 32,        /**< test2/test3: Accept invite to team abc */
+    FUNC_ACCEPT_DEF = 33         /**< test5/test6: Accept invite to team def */
 
 } FunctionId;
 
