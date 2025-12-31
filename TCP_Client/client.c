@@ -924,6 +924,47 @@ int main(int argc, char *argv[]) {
                         beautify_result(recvbuf, pretty, sizeof(pretty));
                         show_message_ncurses("Buy Weapon Result", pretty);
                     }
+                } else if (shop_sel == 2) {
+                    // Repair Ship flow
+                    // Fetch current coin from server
+                    int coin = -1;
+                    if (send_line(sock, "GETCOIN") >= 0 && recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                        int code_tmp = 0;
+                        int coin_tmp = -1;
+                        if (sscanf(recvbuf, "%d %d", &code_tmp, &coin_tmp) == 2) {
+                            coin = coin_tmp;
+                        }
+                    }
+                    
+                    // Optionally fetch current HP/max HP (if GET_HP command exists)
+                    // For now, pass -1 for unknown HP values
+                    int current_hp = -1, max_hp = -1;
+                    // TODO: Add GET_HP command if available
+                    
+                    int repair_amount = shop_repair_menu_ncurses(current_hp, max_hp, coin);
+                    if (repair_amount <= 0) break; // cancelled or invalid
+                    
+                    // Send REPAIR command
+                    snprintf(cmd, sizeof(cmd), "REPAIR %d", repair_amount);
+                    if (send_line(sock, cmd) < 0) {
+                        perror("send() error");
+                        break;
+                    }
+                    if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                        int code, newHP = 0;
+                        long newCoin = 0;
+                        int n = sscanf(recvbuf, "%d %d %ld", &code, &newHP, &newCoin);
+                        if (code == RESP_REPAIR_OK && n == 3) {
+                            char result_msg[256];
+                            snprintf(result_msg, sizeof(result_msg), 
+                                    "Repair successful!\nNew HP: %d\nNew Coin: %ld", newHP, newCoin);
+                            show_message_ncurses("Repair Ship Result", result_msg);
+                        } else {
+                            char pretty[1024];
+                            beautify_result(recvbuf, pretty, sizeof(pretty));
+                            show_message_ncurses("Repair Ship Result", pretty);
+                        }
+                    }
                 }
 #else
                 printf("Shop menu is only available with ncurses.\n");

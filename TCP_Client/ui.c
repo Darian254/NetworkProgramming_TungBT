@@ -613,8 +613,8 @@ int shop_menu_ncurses(void) {
     int max_y, max_x;
     getmaxyx(stdscr, max_y, max_x);
 
-    int win_h = 12;
-    int win_w = 60;
+    int win_h = 14;
+    int win_w = 70;
     int start_y = (max_y - win_h) / 2;
     int start_x = (max_x - win_w) / 2;
 
@@ -624,19 +624,19 @@ int shop_menu_ncurses(void) {
 
     mvwprintw(win, 1, (win_w - 9) / 2, "SHOP MENU");
 
-    int selected = 0; // 0 = Buy Armor, 1 = Buy Weapon
+    int selected = 0; // 0 = Buy Armor, 1 = Buy Weapon, 2 = Repair Ship
     int result = -1;
 
     while (1) {
         // Clear area
-        for (int i = 3; i < 8; i++) {
+        for (int i = 3; i < 10; i++) {
             for (int j = 2; j < win_w - 2; j++) {
                 mvwaddch(win, i, j, ' ');
             }
         }
 
         // Buy Armor button (left)
-        int armor_x = 8, armor_y = 5, armor_w = 18, armor_h = 3;
+        int armor_x = 6, armor_y = 5, armor_w = 18, armor_h = 3;
         if (selected == 0) wattron(win, A_REVERSE);
         for (int i = 0; i < armor_h; i++) {
             for (int j = 0; j < armor_w; j++) {
@@ -646,8 +646,8 @@ int shop_menu_ncurses(void) {
         mvwprintw(win, armor_y + 1, armor_x + (armor_w - 10) / 2, "BUY ARMOR");
         if (selected == 0) wattroff(win, A_REVERSE);
 
-        // Buy Weapon button (right)
-        int weapon_x = 34, weapon_y = 5, weapon_w = 18, weapon_h = 3;
+        // Buy Weapon button (middle)
+        int weapon_x = 26, weapon_y = 5, weapon_w = 18, weapon_h = 3;
         if (selected == 1) wattron(win, A_REVERSE);
         for (int i = 0; i < weapon_h; i++) {
             for (int j = 0; j < weapon_w; j++) {
@@ -657,15 +657,29 @@ int shop_menu_ncurses(void) {
         mvwprintw(win, weapon_y + 1, weapon_x + (weapon_w - 11) / 2, "BUY WEAPON");
         if (selected == 1) wattroff(win, A_REVERSE);
 
+        // Repair Ship button (right)
+        int repair_x = 46, repair_y = 5, repair_w = 18, repair_h = 3;
+        if (selected == 2) wattron(win, A_REVERSE);
+        for (int i = 0; i < repair_h; i++) {
+            for (int j = 0; j < repair_w; j++) {
+                mvwaddch(win, repair_y + i, repair_x + j, ' ');
+            }
+        }
+        mvwprintw(win, repair_y + 1, repair_x + (repair_w - 11) / 2, "REPAIR SHIP");
+        if (selected == 2) wattroff(win, A_REVERSE);
+
         // Instructions
-        mvwprintw(win, 9, (win_w - 40) / 2, "Arrow: Select | Enter: Confirm | ESC: Back");
+        mvwprintw(win, 9, 2, "Arrow Keys: Navigate | Enter: Confirm | ESC: Back");
+        mvwprintw(win, 10, 2, "Shortcuts: A = Armor | W = Weapon | R = Repair");
         wrefresh(win);
 
         int ch = wgetch(win);
-        if (ch == KEY_LEFT || ch == KEY_RIGHT) {
-            selected = 1 - selected;
+        if (ch == KEY_LEFT) {
+            if (selected > 0) selected--;
+        } else if (ch == KEY_RIGHT) {
+            if (selected < 2) selected++;
         } else if (ch == '\n' || ch == KEY_ENTER) {
-            result = selected; // 0 = Buy Armor, 1 = Buy Weapon
+            result = selected; // 0 = Buy Armor, 1 = Buy Weapon, 2 = Repair
             break;
         } else if (ch == 27) { // ESC
             result = -1;
@@ -675,6 +689,9 @@ int shop_menu_ncurses(void) {
             break;
         } else if (ch == 'w' || ch == 'W') {
             result = 1;
+            break;
+        } else if (ch == 'r' || ch == 'R') {
+            result = 2;
             break;
         }
     }
@@ -832,6 +849,88 @@ int shop_weapon_menu_ncurses(int coin) {
     refresh();
     endwin();
     return result;
+}
+
+// Repair ship: input HP amount to repair
+int shop_repair_menu_ncurses(int current_hp, int max_hp, int coin) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(1);  // Show cursor for input
+    erase();
+    refresh();
+
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+
+    int win_h = 18;
+    int win_w = 70;
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    keypad(win, TRUE);
+    box(win, 0, 0);
+
+    mvwprintw(win, 1, (win_w - 18) / 2, "REPAIR SHIP (SHOP)");
+    
+    // Show coin at upper-right corner
+    char coin_str[32];
+    snprintf(coin_str, sizeof(coin_str), "Coin: %d", coin);
+    int coin_x = win_w - 2 - (int)strlen(coin_str);
+    if (coin_x < 2) coin_x = 2;
+    mvwprintw(win, 1, coin_x, "%s", coin_str);
+
+    // Ship status
+    mvwprintw(win, 3, 2, "=== SHIP STATUS ===");
+    if (current_hp >= 0 && max_hp > 0) {
+        mvwprintw(win, 4, 2, "Current HP: %d / %d", current_hp, max_hp);
+        int missing_hp = max_hp - current_hp;
+        if (missing_hp > 0) {
+            mvwprintw(win, 5, 2, "Missing HP: %d", missing_hp);
+        } else {
+            mvwprintw(win, 5, 2, "Ship is at full health!");
+        }
+    } else {
+        mvwprintw(win, 4, 2, "HP Status: Unknown (fetch HP first)");
+    }
+
+    // Repair cost info
+    mvwprintw(win, 7, 2, "=== REPAIR PRICING ===");
+    mvwprintw(win, 8, 2, "Cost: 5 coin per 1 HP repaired");
+    
+    // Input field
+    mvwprintw(win, 10, 2, "Enter HP amount to repair:");
+    mvwprintw(win, 11, 2, "> ");
+    
+    // Instructions
+    mvwprintw(win, 13, 2, "Tips:");
+    mvwprintw(win, 14, 2, "- Max repair limited by coin and missing HP");
+    mvwprintw(win, 15, 2, "- Press Enter to confirm, ESC to cancel");
+    
+    wrefresh(win);
+
+    // Get input
+    char input[16] = "";
+    int result = -1;
+    
+    get_input_field(win, 11, 4, input, sizeof(input), 1);
+    
+    if (strlen(input) > 0) {
+        result = atoi(input);
+        if (result <= 0) {
+            result = -1; // Invalid amount
+        }
+    } else {
+        result = -1; // Cancelled or empty input
+    }
+
+    delwin(win);
+    clear();
+    refresh();
+    endwin();
+    return result; // Returns HP amount to repair, or -1 if cancelled
 }
 
 #endif

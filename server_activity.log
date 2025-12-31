@@ -441,3 +441,7 @@
 2025-12-31 18:50:36 [WARN] action=BUYARMOR user=- input="1" code=315 message="You are not logged in."
 2025-12-31 18:50:41 [WARN] action=GETCOIN user=- input="" code=315 message="You are not logged in."
 2025-12-31 18:50:44 [WARN] action=BUYARMOR user=- input="1" code=315 message="You are not logged in."
+2025-12-31 19:05:22 [WARN] action=GETCOIN user=- input="" code=315 message="You are not logged in."
+2025-12-31 19:06:14 [INFO] action=LOGIN user=test1 input="test1 Admin@2024" code=110 message="You have logged in successfully."
+2025-12-31 19:06:21 [INFO] action=GETCOIN user=test1 input="" code=202 message="Your coin balance retrieved successfully."
+2025-12-31 19:07:04 [ERROR] action=REPAIR user=test1 input="15" code=504 message="You are not currently in a match."

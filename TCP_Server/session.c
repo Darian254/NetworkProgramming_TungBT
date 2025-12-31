@@ -141,24 +141,29 @@ int server_handle_buyarmor(ServerSession *session, UserTable *ut, int armor_type
         return RESP_SYNTAX_ERROR;
     }
     
+    printf("[DEBUG] server_handle_buyarmor: session->isLoggedIn: %d\n", session->isLoggedIn);
     if (!session->isLoggedIn) {
         return RESP_NOT_LOGGED;
     }
-    
+
+    printf("[DEBUG] server_handle_buyarmor: session->current_match_id: %d\n", session->current_match_id);
     int match_id = session->current_match_id;    
     if (match_id <= 0) {
         return RESP_NOT_IN_MATCH;
     }
     
+    printf("[DEBUG] server_handle_buyarmor: armor_type: %d\n", armor_type);
     if (armor_type < ARMOR_BASIC || armor_type > ARMOR_ENHANCED) {
         return RESP_ARMOR_NOT_FOUND;
     }
     
+
     Ship *ship = find_ship(match_id, session->username);
     if (!ship) {
         return RESP_INTERNAL_ERROR; 
     }
-         
+    printf("[DEBUG] server_handle_buyarmor: ship: %s\n", ship->player_username);
+    printf("[DEBUG] server_handle_buyarmor: username: %s\n", session->username);    
     return ship_buy_armor(ut, ship, session->username, armor_type);
 }
 

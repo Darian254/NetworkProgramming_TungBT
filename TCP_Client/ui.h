@@ -79,6 +79,15 @@ int shop_armor_menu_ncurses(int coin);
  * @return 0 for CANNON AMMO, 1 for LASER, 2 for MISSILE, -1 if cancelled
  */
 int shop_weapon_menu_ncurses(int coin);
+
+/**
+ * @brief Display repair ship screen with HP input field.
+ * @param current_hp Current ship HP (for display, -1 if unknown)
+ * @param max_hp Maximum ship HP (for display, -1 if unknown)
+ * @param coin Current coin to display (upper-right)
+ * @return HP amount to repair (positive integer), or -1 if cancelled
+ */
+int shop_repair_menu_ncurses(int current_hp, int max_hp, int coin);
 #endif
 
 #endif

@@ -484,12 +484,10 @@ ResponseCode ship_buy_armor(UserTable *user_table, Ship *ship, const char *usern
     if (target_slot == 0) {
         return RESP_ARMOR_SLOT_FULL;  // 522
     }  
-    printf("[DEBUG] ship_buy_armor: target_slot == 0\n");
     /* ========== XỬ LÝ LOGIC ========== */
     // 4.1: Trừ coin 
     // updateUserCoin already got its own mutex lock inside
     int coin_result = updateUserCoin(user_table, username, -price);
-    printf("[DEBUG] ship_buy_armor: coin_result: %d\n", coin_result);
     if (coin_result != 0) {
         return RESP_DATABASE_ERROR;  // 501 - lỗi khi trừ coin
     }
