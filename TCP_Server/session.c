@@ -8,7 +8,6 @@
 #include "users.h"
 #include "users_io.h"
 #include "db_schema.h"  // For FILE_USERS and function declarations
-#include "dc.c"
 
 /* Global session manager with mutex for thread safety */
 static SessionManager session_mgr = {NULL, 0};
@@ -287,8 +286,8 @@ int server_handle_start_match(ServerSession *session, int opponent_team_id) {
     }
     
     // 6. Check if user is the team creator
-    int user_id = (int)hashFunc(session->username);
-    if (user_team->creator_id != user_id) {
+    
+    if (strcmp(user_team->creator_username, session->username) != 0) {
         return RESP_NOT_CREATOR;
     }
     
@@ -321,11 +320,22 @@ int server_handle_start_match(ServerSession *session, int opponent_team_id) {
         return RESP_MATCH_CREATE_FAILED;
     }
     
-    // 12. Update session with new match ID
+    // 12. Create ships for all team members
+    extern TeamMember team_members[];
+    extern int team_member_count;
+    
+    for (int i = 0; i < team_member_count; i++) {
+        if (team_members[i].team_id == user_team_id || 
+            team_members[i].team_id == opponent_team_id) {
+            create_ship(new_match->match_id, team_members[i].username);
+        }
+    }
+    
+    // 13. Update session with new match ID
     session->current_match_id = new_match->match_id;
     update_session_by_socket(session->socket_fd, session);
     
-    // 13. Success
+    // 14. Success
     return RESP_START_MATCH_OK;
 }
 
@@ -809,12 +819,8 @@ int get_active_session_count(void) {
  * ============================================================================ */
 
 // External references to db.c arrays
-extern Match matches[];
-extern int match_count;
 extern TeamMember team_members[];
 extern int team_member_count;
-extern Ship ships[];
-extern int ship_count;
 
 int server_handle_match_info(int match_id, char *output, size_t output_size) {
     if (!output || output_size == 0) {
@@ -822,15 +828,17 @@ int server_handle_match_info(int match_id, char *output, size_t output_size) {
     }
     
     // Find match
+    printf("[DEBUG] Finding match by ID: %d\n", match_id);
     Match *match = find_match_by_id(match_id);
     if (!match) {
+        printf("[DEBUG] Match not found\n");
         return RESP_MATCH_NOT_FOUND;
     }
     
     // Get team info
     Team *team1 = find_team_by_id(match->team1_id);
     Team *team2 = find_team_by_id(match->team2_id);
-    
+    printf("[DEBUG] Team 1: %s, Team 2: %s\n", team1->name, team2->name);
     if (!team1 || !team2) {
         return RESP_INTERNAL_ERROR;
     }
@@ -847,18 +855,23 @@ int server_handle_match_info(int match_id, char *output, size_t output_size) {
                       match->status == MATCH_PENDING ? "Pending" :
                       match->status == MATCH_RUNNING ? "Running" :
                       match->status == MATCH_FINISHED ? "Finished" : "Canceled");
+    printf("[DEBUG] Match status: %s\n", match->status == MATCH_PENDING ? "Pending" :
+                      match->status == MATCH_RUNNING ? "Running" :
+                      match->status == MATCH_FINISHED ? "Finished" : "Canceled");
     offset += snprintf(buffer + offset, sizeof(buffer) - offset,
                       "Duration: %d seconds\n", match->duration);
-    
+    printf("[DEBUG] Duration: %d seconds\n", match->duration);
     if (match->status == MATCH_FINISHED) {
         if (match->winner_team_id == -1) {
             offset += snprintf(buffer + offset, sizeof(buffer) - offset,
                              "Result: DRAW\n");
+            printf("[DEBUG] Result: DRAW\n");
         } else {
             Team *winner = find_team_by_id(match->winner_team_id);
             offset += snprintf(buffer + offset, sizeof(buffer) - offset,
                              "Winner: Team %s (ID: %d)\n", 
                              winner ? winner->name : "Unknown", match->winner_team_id);
+            printf("[DEBUG] Winner: Team %s (ID: %d)\n", winner ? winner->name : "Unknown", match->winner_team_id);
         }
     }
     
@@ -867,14 +880,14 @@ int server_handle_match_info(int match_id, char *output, size_t output_size) {
     // Team 1 info
     offset += snprintf(buffer + offset, sizeof(buffer) - offset,
                       "--- TEAM 1: %s (ID: %d) ---\n", team1->name, team1->team_id);
-    
+    printf("[DEBUG] Team 1: %s (ID: %d)\n", team1->name, team1->team_id);
     // Get team 1 members
     for (int i = 0; i < team_member_count; i++) {
         if (team_members[i].team_id == team1->team_id) {
             const char *username = team_members[i].username;
             offset += snprintf(buffer + offset, sizeof(buffer) - offset,
                              "  Player: %s", username);
-            
+            printf("[DEBUG] Player: %s\n", username);
             // Find ship for this player
             Ship *ship = find_ship(match_id, username);
             if (ship) {
@@ -886,9 +899,17 @@ int server_handle_match_info(int match_id, char *output, size_t output_size) {
                                  ship->cannon_ammo,
                                  ship->laser_count,
                                  ship->missile_count);
+            printf("[DEBUG] Ship: HP: %d | Armor1: %d | Armor2: %d | Cannon: %d | Laser: %d | Missile: %d\n",
+                                 ship->hp,
+                                 ship->armor_slot_1_value,
+                                 ship->armor_slot_2_value,
+                                 ship->cannon_ammo,
+                                 ship->laser_count,
+                                 ship->missile_count);
             } else {
                 offset += snprintf(buffer + offset, sizeof(buffer) - offset,
                                  " | No ship data\n");
+            printf("[DEBUG] No ship data\n");
             }
         }
     }
@@ -898,14 +919,14 @@ int server_handle_match_info(int match_id, char *output, size_t output_size) {
     // Team 2 info
     offset += snprintf(buffer + offset, sizeof(buffer) - offset,
                       "--- TEAM 2: %s (ID: %d) ---\n", team2->name, team2->team_id);
-    
+    printf("[DEBUG] Team 2: %s (ID: %d)\n", team2->name, team2->team_id);
     // Get team 2 members
     for (int i = 0; i < team_member_count; i++) {
         if (team_members[i].team_id == team2->team_id) {
             const char *username = team_members[i].username;
             offset += snprintf(buffer + offset, sizeof(buffer) - offset,
                              "  Player: %s", username);
-            
+            printf("[DEBUG] Player: %s\n", username);
             // Find ship for this player
             Ship *ship = find_ship(match_id, username);
             if (ship) {
@@ -917,9 +938,17 @@ int server_handle_match_info(int match_id, char *output, size_t output_size) {
                                  ship->cannon_ammo,
                                  ship->laser_count,
                                  ship->missile_count);
+            printf("[DEBUG] Ship: HP: %d | Armor1: %d | Armor2: %d | Cannon: %d | Laser: %d | Missile: %d\n",
+                                 ship->hp,
+                                 ship->armor_slot_1_value,
+                                 ship->armor_slot_2_value,
+                                 ship->cannon_ammo,
+                                 ship->laser_count,
+                                 ship->missile_count);
             } else {
                 offset += snprintf(buffer + offset, sizeof(buffer) - offset,
                                  " | No ship data\n");
+            printf("[DEBUG] No ship data\n");
             }
         }
     }
@@ -927,7 +956,7 @@ int server_handle_match_info(int match_id, char *output, size_t output_size) {
     // Copy to output
     strncpy(output, buffer, output_size - 1);
     output[output_size - 1] = '\0';
-    
+    printf("[DEBUG] Output: %s\n", output);
     return RESP_MATCH_INFO_OK;
 }
 

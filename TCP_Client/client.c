@@ -91,7 +91,10 @@ int main(int argc, char *argv[]) {
         displayMenu();
         fflush(stdout);
         safeInput(line, sizeof(line));
-        if (strlen(line) == 0) break;
+        if (strlen(line) == 0) {
+            printf("Please enter an option number.\n\n");
+            continue;
+        }
         if (sscanf(line, "%d", &choice) != 1) {
             printf("Invalid input. Please enter a number.\n\n");
             continue;
@@ -843,9 +846,21 @@ int main(int argc, char *argv[]) {
                 }
                 
                 if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
-                    char pretty[1024];
-                    beautify_result(recvbuf, pretty, sizeof(pretty));
-                    printf("%s", pretty);
+                    // Parse response: code and data separated by space
+                    int code = 0;
+                    char *data_start = strchr(recvbuf, ' ');
+                    if (data_start && sscanf(recvbuf, "%d", &code) == 1 && code == RESP_MATCH_INFO_OK) {
+                        data_start++; // Skip space
+                        // Replace | back to newlines for display
+                        for (int i = 0; data_start[i] != '\0'; i++) {
+                            if (data_start[i] == '|') data_start[i] = '\n';
+                        }
+                        printf("%s\n", data_start);
+                    } else {
+                        char pretty[1024];
+                        beautify_result(recvbuf, pretty, sizeof(pretty));
+                        printf("%s", pretty);
+                    }
                 }
                 break;
             }

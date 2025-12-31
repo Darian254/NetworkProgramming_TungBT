@@ -165,7 +165,7 @@ typedef struct {
     int         team_id;                        // PK, auto-increment
     char        name[TEAM_NAME_LEN];
     char        creator_username[MAX_USERNAME];                    
-    int         creator_id;                     // FK -> USERS.user_id
+    // int         creator_id;                     // FK -> USERS.user_id
     int         member_limit;                   // Default 3
     TeamStatus  status;                         // active | deleted
     time_t      created_at;
@@ -179,7 +179,7 @@ typedef struct {
  * ============================================================================ */
 typedef struct {
     int         team_id;                        // FK -> TEAMS.team_id
-    int         user_id;                        // FK -> USERS.user_id (hash of username)
+    // int         user_id;                        // FK -> USERS.user_id (hash of username)
     char        username[MAX_USERNAME];         // Username for easy lookup
     TeamRole    role;                           // creator | member
     time_t      joined_at;
@@ -248,7 +248,8 @@ typedef struct {
  * ============================================================================ */
 typedef struct {
     int         match_id;                       // FK -> MATCHES.match_id
-    int         player_id;                      // FK -> USERS.user_id
+    // int         player_id;                      // FK -> USERS.user_id
+    char        player_username[MAX_USERNAME];         // Username for easy lookup
     int         hp;                             // Current health points
     
     // Armor slots (max 2)
@@ -381,14 +382,18 @@ int get_match_result(int match_id);
 
 /* Ship operations (in-match only) */
 Ship* find_ship(int match_id, const char *username);
-// Ship* create_ship(int match_id, const char *username);
+Ship* create_ship(int match_id, const char *username);
 void delete_ships_by_match(int match_id);
 // int ship_take_damage(Ship *s, int damage);
-// ResponseCode ship_buy_armor(UserTable *user_table, Ship *ship, const char *username, ArmorType type);
+ResponseCode ship_buy_armor(UserTable *user_table, Ship *ship, const char *username, ArmorType type);
 ResponseCode ship_buy_weapon(UserTable *user_table, Ship *ship, const char *username, WeaponType type);
 
 /* Item helpers */
 int get_armor_price(ArmorType type);
 int get_armor_value(ArmorType type);
+
+/* Challenge operations */
+Challenge* find_challenge_by_id(int challenge_id);
+int create_challenge_record(int sender_team_id, int target_team_id);
 
 #endif // DB_SCHEMA_H

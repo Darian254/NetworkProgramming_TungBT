@@ -38,8 +38,8 @@ void command_routes(int client_sock, char *command) {
     }
     ServerSession *session = &node->session;
 
-    // Prepare response buffer
-    char response[512];
+    // Prepare response buffer (increased for MATCH_INFO)
+    char response[8192];
     int response_code;
 
     // TODO Step 3: Route commands to handlers
@@ -436,8 +436,14 @@ void command_routes(int client_sock, char *command) {
         if (payload && sscanf(payload, "%d", &match_id) == 1) {
             char match_info[4096] = {0};
             response_code = server_handle_match_info(match_id, match_info, sizeof(match_info));
+            printf("[DEBUG] MATCH_INFO response_code=%d, info_len=%zu\n", response_code, strlen(match_info));
             if (response_code == RESP_MATCH_INFO_OK) {
-                snprintf(response, sizeof(response), "%d\r\n%s", response_code, match_info);
+                // Replace newlines with | to send as single line
+                for (int i = 0; match_info[i] != '\0'; i++) {
+                    if (match_info[i] == '\n') match_info[i] = '|';
+                }
+                int written = snprintf(response, sizeof(response), "%d %s\r\n", response_code, match_info);
+                printf("[DEBUG] Response length: %d bytes, response: %.100s...\n", written, response);
             } else {
                 snprintf(response, sizeof(response), "%d\r\n", response_code);
             }
