@@ -479,7 +479,7 @@ int display_menu_ncurses(void) {
                 mvwprintw(win, win_h - 1, 2, "                                        ");
                 wrefresh(win);
             }
-        } else if (ch == 27) {  /* ESC key */
+        } else if (ch == 27) {  
             result = FUNC_EXIT;
             break;
         } else if (isdigit(ch) && pos < 3) {
