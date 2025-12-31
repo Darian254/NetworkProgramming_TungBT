@@ -822,7 +822,7 @@ int get_active_session_count(void) {
 extern TeamMember team_members[];
 extern int team_member_count;
 
-int server_handle_match_info(int match_id, char *output, size_t output_size) {
+int server_handle_match_info(int match_id, char *output, size_t output_size, UserTable *user_table) {
     if (!output || output_size == 0) {
         return RESP_INTERNAL_ERROR;
     }
@@ -888,6 +888,13 @@ int server_handle_match_info(int match_id, char *output, size_t output_size) {
             offset += snprintf(buffer + offset, sizeof(buffer) - offset,
                              "  Player: %s", username);
             printf("[DEBUG] Player: %s\n", username);
+            User *user = findUser(user_table, username);
+            if (user) {
+                printf("[DEBUG] Player's coin: %d\n", user->coin);
+            } else {
+                printf("[DEBUG] Player not found\n");
+            }
+            printf("[DEBUG] Player's role: %d\n", team_members[i].role);
             // Find ship for this player
             Ship *ship = find_ship(match_id, username);
             if (ship) {
@@ -926,7 +933,15 @@ int server_handle_match_info(int match_id, char *output, size_t output_size) {
             const char *username = team_members[i].username;
             offset += snprintf(buffer + offset, sizeof(buffer) - offset,
                              "  Player: %s", username);
+                             
             printf("[DEBUG] Player: %s\n", username);
+            User *user = findUser(user_table, username);
+            if (user) {
+                printf("[DEBUG] Player's coin: %d\n", user->coin);
+            } else {
+                printf("[DEBUG] Player not found\n");
+            }
+            printf("[DEBUG] Player's role: %d\n", team_members[i].role);
             // Find ship for this player
             Ship *ship = find_ship(match_id, username);
             if (ship) {

@@ -435,7 +435,7 @@ void command_routes(int client_sock, char *command) {
         int match_id = -1;
         if (payload && sscanf(payload, "%d", &match_id) == 1) {
             char match_info[4096] = {0};
-            response_code = server_handle_match_info(match_id, match_info, sizeof(match_info));
+            response_code = server_handle_match_info(match_id, match_info, sizeof(match_info), app_context_get_user_table());
             printf("[DEBUG] MATCH_INFO response_code=%d, info_len=%zu\n", response_code, strlen(match_info));
             if (response_code == RESP_MATCH_INFO_OK) {
                 // Replace newlines with | to send as single line
