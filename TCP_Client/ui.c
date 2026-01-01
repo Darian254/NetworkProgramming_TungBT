@@ -1045,4 +1045,5 @@ int battle_screen_ncurses(const char *my_username,
             }
         }
     }
+    }        
 #endif
