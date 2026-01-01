@@ -3,6 +3,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include "../TCP_Server/config.h"
 
 void displayMenu() {
@@ -64,6 +65,7 @@ void displayMenu() {
     printf("41. Open Chest\n");
     printf("42. Accept Challenge\n");
     printf("43. Decline Challenge\n");
+    printf("44. Battle Screen\n");
     printf("==================================\n");
     printf("Select an option: ");
 }
@@ -437,8 +439,9 @@ int display_menu_ncurses(void) {
     y++;
     mvwprintw(win, y++, 2, " [SHOP]");
     mvwprintw(win, y++, 2, "36. Shop Menu");
+    mvwprintw(win, y++, 2, "44. Battle Screen");
     
-    mvwprintw(win, win_h - 2, 2, "Enter option number (0-36) or ESC to exit: ");
+    mvwprintw(win, win_h - 2, 2, "Enter option number (0-44) or ESC to exit: ");
     
     wrefresh(win);
     
@@ -460,7 +463,7 @@ int display_menu_ncurses(void) {
             if (pos > 0) {
                 input[pos] = '\0';
                 int choice = atoi(input);
-                if (choice >= 0 && choice <= 36) {
+                if (choice >= 0 && choice <= 39) {
                     result = choice;
                     break;
                 } else {
@@ -840,4 +843,206 @@ int shop_weapon_menu_ncurses(int coin) {
     return result;
 }
 
+// =====================
+// Battle Screen (6 ships)
+// =====================
+int battle_screen_ncurses(const char *my_username,
+    const char **team_left, int *team_left_hp, int left_count,
+    const char **team_right, int *team_right_hp, int right_count,
+    int my_hp,
+    char *out_target_username, size_t out_target_username_size,
+    int *out_weapon_id) {
+    
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(0);
+    erase();
+    refresh();
+
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+
+    
+    // Cần ít nhất: 4 (header) + 15 (3 tàu x 5 dòng) + 3 (footer) = ~22 dòng
+    int needed_h = 24; 
+    int win_h = (max_y > needed_h) ? needed_h : max_y - 1;
+    int win_w = (max_x > 80) ? 80 : max_x - 1;
+    
+    // Bảo vệ: Nếu màn hình terminal quá bé thật sự
+    if (win_h < 22 || win_w < 40) {
+        endwin();
+        printf("Terminal window too small! Please resize (Need > 24 lines).\n");
+        return -1;
+    }
+
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    if (!win) { endwin(); return -1; }
+
+    keypad(win, TRUE);
+    box(win, 0, 0);
+
+    // --- Header ---
+    mvwprintw(win, 1, 2, "[S] Shop");
+    char hp_str[32];
+    snprintf(hp_str, sizeof(hp_str), "My HP: %d", my_hp);
+    int hp_x = win_w - 2 - (int)strlen(hp_str);
+    if (hp_x < 2) hp_x = 2;
+    
+    // In HP user và Tiêu đề
+    mvwprintw(win, 1, hp_x, "%s", hp_str);
+    mvwprintw(win, 1, (win_w - 12) / 2, "BATTLE FIELD"); 
+
+    int col_left_x = 4;
+    int col_right_x = win_w - 24;
+    
+
+    int row_top = 4; 
+    
+    // In tên đội ngay dòng 2 (để tiết kiệm chỗ)
+    mvwprintw(win, 2, col_left_x,   "TEAM A (Friendly)");
+    mvwprintw(win, 2, col_right_x,  "TEAM B (Enemy)");
+
+    // --- VẼ ĐỘI MÌNH (LEFT) ---
+    for (int i = 0; i < 3; i++) {
+        int y = row_top + i * 5;
+        
+        int is_dead = (i < left_count && team_left_hp[i] <= 0);
+        if (is_dead) wattron(win, A_DIM);
+
+        // Vẽ hộp tàu 
+        // Dòng trên
+        for (int dx = 0; dx < 16; dx++) mvwaddch(win, y, col_left_x + dx, '-');
+        // Dòng dưới
+        for (int dx = 0; dx < 16; dx++) mvwaddch(win, y + 3, col_left_x + dx, '-');
+        
+        // Các cạnh bên
+        mvwaddch(win, y + 1, col_left_x, '|');
+        mvwaddch(win, y + 2, col_left_x, '|');
+        mvwaddch(win, y + 1, col_left_x + 15, '|');
+        mvwaddch(win, y + 2, col_left_x + 15, '|');
+        
+        // Nội dung bên trong
+        if (i < left_count && team_left[i]) {
+            mvwprintw(win, y + 1, col_left_x + 2, "%.*s", 12, team_left[i]);
+            
+            char hp_txt[16];
+            snprintf(hp_txt, sizeof(hp_txt), "%d", team_left_hp[i]);
+            mvwprintw(win, y + 2, col_left_x + 8, "HP:%s", hp_txt);
+
+            if (my_username && strcmp(my_username, team_left[i]) == 0) {
+                mvwprintw(win, y + 2, col_left_x + 2, "(You)");
+            }
+            if (is_dead) mvwprintw(win, y + 1, col_left_x + 2, "X_X");
+        } else {
+            mvwprintw(win, y + 1, col_left_x + 2, "[Empty]");
+            mvwprintw(win, y + 2, col_left_x + 2, "       ");
+        }
+        
+        if (is_dead) wattroff(win, A_DIM);
+    }
+
+    // Chọn mục tiêu đầu tiên còn sống
+    int selected_enemy = -1;
+    if (right_count > 0) {
+        for(int k=0; k<right_count; k++) {
+            if(team_right[k] && team_right_hp[k] > 0) {
+                selected_enemy = k;
+                break;
+            }
+        }
+        if (selected_enemy == -1) selected_enemy = 0;
+    } else {
+        selected_enemy = 0;
+    }
+
+    // --- VÒNG LẶP UI ---
+    while (1) {
+        // --- VẼ ĐỘI ĐỊCH (RIGHT) ---
+        for (int i = 0; i < 3; i++) {
+            int y = row_top + i * 5;
+            int is_dead = (i < right_count && team_right_hp[i] <= 0);
+            
+            // Highlight
+            if (i == selected_enemy && !is_dead && i < right_count && team_right[i]) {
+                wattron(win, A_REVERSE); 
+            }
+            if (is_dead) wattron(win, A_DIM);
+
+            // Vẽ hộp
+            for (int dx = 0; dx < 16; dx++) mvwaddch(win, y, col_right_x + dx, '-');
+            for (int dx = 0; dx < 16; dx++) mvwaddch(win, y + 3, col_right_x + dx, '-');
+            
+            mvwaddch(win, y + 1, col_right_x, '|');
+            mvwaddch(win, y + 2, col_right_x, '|');
+            mvwaddch(win, y + 1, col_right_x + 15, '|');
+            mvwaddch(win, y + 2, col_right_x + 15, '|');
+
+            if (i < right_count && team_right[i]) {
+                mvwprintw(win, y + 1, col_right_x + 2, "%.*s", 12, team_right[i]);
+                char hp_txt[16];
+                snprintf(hp_txt, sizeof(hp_txt), "%d", team_right_hp[i]);
+                mvwprintw(win, y + 2, col_right_x + 8, "HP:%s", hp_txt);
+                
+                if (is_dead) mvwprintw(win, y + 1, col_right_x + 2, "X_X");
+            } else {
+                mvwprintw(win, y + 1, col_right_x + 2, "[Empty]");
+                mvwprintw(win, y + 2, col_right_x + 2, "       ");
+            }
+            
+            if (is_dead) wattroff(win, A_DIM);
+            if (i == selected_enemy && !is_dead && i < right_count && team_right[i]) {
+                wattroff(win, A_REVERSE);
+            }
+        }
+
+       
+        // Vị trí footer  = win_h - 2 (dòng áp chót)
+        mvwprintw(win, win_h - 3, 2, "--------------------------------------------------------");
+        mvwprintw(win, win_h - 2, 2, "Up/Down: Target | Enter/F: FIRE | S: Shop | ESC: Back   ");
+        
+        wrefresh(win);
+
+        // --- XỬ LÝ PHÍM (Giữ nguyên logic của bạn) ---
+        int ch = wgetch(win);
+        if (ch == KEY_UP) { 
+            if (right_count > 0) {
+                int start = selected_enemy;
+                do {
+                    selected_enemy--;
+                    if (selected_enemy < 0) selected_enemy = right_count - 1;
+                } while (selected_enemy != start && 
+                        (selected_enemy >= right_count || !team_right[selected_enemy] || team_right_hp[selected_enemy] <= 0));
+            }
+        } else if (ch == KEY_DOWN) { 
+            if (right_count > 0) {
+                int start = selected_enemy;
+                do {
+                    selected_enemy++;
+                    if (selected_enemy >= right_count) selected_enemy = 0;
+                } while (selected_enemy != start && 
+                        (selected_enemy >= right_count || !team_right[selected_enemy] || team_right_hp[selected_enemy] <= 0));
+            }
+        } else if (ch == 's' || ch == 'S') { 
+            delwin(win); clear(); refresh(); endwin();
+            return 0; // Shop
+        } else if (ch == 27) { // ESC
+            delwin(win); clear(); refresh(); endwin();
+            return -1; // Back
+        } else if (ch == '\n' || ch == KEY_ENTER || ch == 'f' || ch == 'F') { // FIRE
+            if (selected_enemy >= 0 && selected_enemy < right_count && 
+                team_right[selected_enemy] && team_right_hp[selected_enemy] > 0) {
+                
+                if (out_target_username) strcpy(out_target_username, team_right[selected_enemy]);
+                if (out_weapon_id) *out_weapon_id = 0; 
+                
+                delwin(win); clear(); refresh(); endwin();
+                return 1; // FIRE
+            }
+        }
+    }
 #endif

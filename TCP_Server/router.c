@@ -405,8 +405,8 @@ void command_routes(int client_sock, char *command) {
                          result.target_remaining_hp, 
                          result.target_remaining_armor);
                 
-                // Broadcast)
-               broadcast_fire_event(session->username, target_name, 
+                // Broadcast fire event tới tất cả (trừ attacker) - bao gồm cả target
+                broadcast_fire_event(session->username, target_name, 
                                      result.damage_dealt, 
                                      result.target_remaining_hp, 
                                      result.target_remaining_armor);
@@ -433,23 +433,33 @@ void command_routes(int client_sock, char *command) {
         response_code = server_handle_send_challenge(session, target_team, &cid);
         
         if (response_code == RESP_CHALLENGE_SENT)
-            snprintf(response, sizeof(response), "130 CHALLENGE_SENT %d\r\n", cid);
+            snprintf(response, sizeof(response), "%d CHALLENGE_SENT %d\r\n", response_code, cid);
         else 
             snprintf(response, sizeof(response), "%d CHALLENGE_FAIL\r\n", response_code);
     }
     else if (strcmp(type, "ACCEPT_CHALLENGE") == 0) {
-        int cid = atoi(payload);
+        int cid;
+        // Nếu client không gửi ID, tìm challenge ID đang PENDING của team này
+        if (strlen(payload) == 0) {
+            cid = find_latest_pending_challenge_for_team(session->current_team_id);
+        } else {
+            cid = atoi(payload);
+        }
         response_code = server_handle_accept_challenge(session, cid);
         snprintf(response, sizeof(response), "%d CHALLENGE_ACCEPTED %d\r\n", response_code, cid);
         // Gửi response ngay lập tức để đảm bảo response đến trước broadcast chest drop
         connection_send(client_sock, response, strlen(response));
         log_activity("ACCEPT_CHALLENGE", session->username, session->isLoggedIn, payload, response_code);
         
-        // Sau khi gửi response, broadcast chest drop nếu challenge được accept thành công
+        // Sau khi gửi response, gửi 151 MATCH_STARTED và broadcast chest drop nếu challenge được accept thành công
         if (response_code == RESP_CHALLENGE_ACCEPTED) {
             // Lấy match_id từ session hiện tại (đã được cập nhật trong server_handle_accept_challenge)
             int match_id = session->current_match_id;
             if (match_id > 0) {
+                // Bước 1: Gửi 151 MATCH_STARTED tới tất cả thành viên
+                broadcast_match_started(match_id);
+                
+                // Bước 2: Sau đó mới broadcast chest drop (141)
                 broadcast_chest_drop(match_id, -1);
             }
         }
@@ -490,8 +500,8 @@ void command_routes(int client_sock, char *command) {
             // TRƯỜNG HỢP 2: Client gửi ID + Đáp án -> Muốn trả lời
             response_code = server_handle_open_chest(session, app_context_get_user_table(), chest_id, answer);
             
-            if (response_code == RESP_CHEST_OPEN_OK) // 127
-                snprintf(response, sizeof(response), "127 CHEST_OPEN_SUCCESS\r\n");
+            if (response_code == RESP_CHEST_OPEN_OK) // 145
+                snprintf(response, sizeof(response), "%d CHEST_OPEN_SUCCESS\r\n", RESP_CHEST_OPEN_OK);
             else
                 snprintf(response, sizeof(response), "%d CHEST_OPEN_FAIL\r\n", response_code);
         } 

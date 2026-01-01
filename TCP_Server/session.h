@@ -293,11 +293,18 @@ int server_spawn_chest(int match_id);
 int broadcast_chest_drop(int match_id, int exclude_socket_fd);
 
 /**
+ * @brief Gửi thông báo 151 MATCH_STARTED tới tất cả thành viên trong match
+ * @param match_id ID của match
+ */
+void broadcast_match_started(int match_id);
+
+/**
  * @brief Xử lý khi người chơi thực hiện mở rương (trả lời câu hỏi)
  * @param session Phiên làm việc của người chơi
  * @param chest_id ID rương muốn mở
  * @param answer Câu trả lời trắc nghiệm hoặc ngắn
  */
+int server_handle_get_chest_question(ServerSession *session, int chest_id, char *question_out);
 
 
 

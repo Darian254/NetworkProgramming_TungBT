@@ -72,6 +72,7 @@ typedef enum {
     FUNC_SHOP_MENU = 36,        /**< Shop menu */
     FUNC_BUY_WEAPON = 37,     /**< Buy weapon */
     FUNC_GET_WEAPON = 38,     /**< Get weapon info */
+    FUNC_BATTLE_SCREEN = 44,    /**< Open battle screen UI */
 
 } FunctionId;
 
@@ -178,7 +179,7 @@ typedef enum {
     RESP_CHEST_NOT_FOUND = 440,    /**< Chest ID invalid */
     RESP_CHEST_ALREADY_OPENED = 441, 
     RESP_WRONG_ANSWER = 442,       
-    RESP_CHEST_OPEN_OK = 127,
+    RESP_CHEST_OPEN_OK = 145,
     RESP_MATCH_FINISHED = 325,
     RESP_CHEST_OPEN_FAIL = 339,
     RESP_CHEST_BROADCAST = 210,
@@ -309,7 +310,7 @@ static const ResponseMessage RESPONSE_MESSAGES[] = {
     {RESP_CHEST_NOT_FOUND,      "440 ERROR: Treasure chest not found."},
     {RESP_CHEST_ALREADY_OPENED, "441 ERROR: This chest has already been claimed."},
     {RESP_WRONG_ANSWER,         "442 ERROR: Incorrect answer. Try again!"},
-    {RESP_CHEST_OPEN_OK,        "127 CHEST_OK: Chest opened successfully."},
+    {RESP_CHEST_OPEN_OK,        "145 CHEST_OK: Chest opened successfully."},
     {RESP_MATCH_FINISHED,       "325 ERROR: Match has already finished."},
     {RESP_CHEST_OPEN_FAIL,      "339 ERROR: Chest has already been opened."},
     {RESP_CHEST_BROADCAST,      "210 CHEST_COLLECTED: A chest has been collected in the match."},
@@ -340,4 +341,3 @@ static const ResponseMessage RESPONSE_MESSAGES[] = {
 const char *get_response_message(ResponseCode code);
 
 #endif /* CONFIG_H */
-

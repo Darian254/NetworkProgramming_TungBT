@@ -79,6 +79,29 @@ int shop_armor_menu_ncurses(int coin);
  * @return 0 for CANNON AMMO, 1 for LASER, 2 for MISSILE, -1 if cancelled
  */
 int shop_weapon_menu_ncurses(int coin);
+
+/**
+ * @brief Battle screen: show 6 ships (3 per team), HP and Shop option.
+ * Renders two sides and allows selecting an enemy ship to attack.
+ * After selecting target, prompts for weapon (cannon/laser/missile).
+ *
+ * @param my_username Current player's username (for highlighting)
+ * @param team_left Array of friendly usernames (size left_count)
+ * @param left_count Number of friendly ships (expected 3)
+ * @param team_right Array of enemy usernames (size right_count)
+ * @param right_count Number of enemy ships (expected 3)
+ * @param my_hp Current player's ship HP for display
+ * @param out_target_username Output: selected enemy username (buffer provided by caller)
+ * @param out_target_username_size Size of output buffer
+ * @param out_weapon_id Output: 0=cannon, 1=laser, 2=missile
+ * @return 1 if FIRE selected, 0 if Shop requested, -1 if cancelled
+ */
+ int battle_screen_ncurses(const char *my_username,
+    const char **team_left, int *team_left_hp, int left_count,
+    const char **team_right, int *team_right_hp, int right_count,
+    int my_hp,
+    char *out_target_username, size_t out_target_username_size,
+    int *out_weapon_id);
 #endif
 
 #endif

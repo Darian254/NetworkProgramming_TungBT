@@ -196,17 +196,17 @@ Ship* find_ship_by_name(char* target_name) {
     extern Ship ships[]; 
     extern int ship_count;
 
-    printf("[DEBUG] Searching for ship: '%s' | Total ships: %d\n", target_name, ship_count);
+    
     for (int i = 0; i < ship_count; i++) {
         printf(" -> Checked ship [%d]: '%s' (Match ID: %d)\n", 
                i, ships[i].player_username, ships[i].match_id);
         
         if (strcmp(ships[i].player_username, target_name) == 0) {
-            printf("[DEBUG] FOUND target!\n");
+           
             return &ships[i];
         }
     }
-    printf("[DEBUG] Target NOT FOUND.\n");
+    
     return NULL;
 }
 
@@ -712,4 +712,26 @@ Challenge* find_challenge_by_id(int challenge_id) {
         }
     }
     return NULL;
+}
+
+// Hàm tìm challenge PENDING mới nhất của team (target_team_id)
+int find_latest_pending_challenge_for_team(int target_team_id) {
+    if (target_team_id <= 0) return -1;
+    
+    int latest_id = -1;
+    time_t latest_time = 0;
+    
+    for (int i = 0; i < challenge_count; i++) {
+        // So sánh với STATUS_PENDING (0) từ enum RequestStatus
+        // RequestStatus có STATUS_PENDING = 0
+        if (challenges[i].target_team_id == target_team_id &&
+            (int)challenges[i].status == 0) { // STATUS_PENDING = 0
+            if (challenges[i].created_at > latest_time) {
+                latest_time = challenges[i].created_at;
+                latest_id = challenges[i].challenge_id;
+            }
+        }
+    }
+    
+    return latest_id;
 }
