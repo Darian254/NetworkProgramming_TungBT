@@ -49,6 +49,20 @@ void whoami_ui_ncurses(const char *response);
 void show_message_ncurses(const char *title, const char *message);
 
 /**
+ * @brief Display a message dialog in battle screen (does not call endwin).
+ * @param title Dialog title
+ * @param message Message to display
+ */
+void show_message_in_battle_screen(const char *title, const char *message);
+
+/**
+ * @brief Display a message dialog in battle screen with ncurses initialization and cleanup.
+ * @param title Dialog title
+ * @param message Message to display
+ */
+void show_message_in_battle_screen_with_init(const char *title, const char *message);
+
+/**
  * @brief Display main menu using ncurses and get user selection.
  * @return Selected option number (0-23) or FUNC_EXIT if cancelled
  */
@@ -91,8 +105,8 @@ int shop_weapon_menu_ncurses(int coin);
 int popup_input_ncurses(const char *title, const char *question, char *buffer, size_t size);
 
 /**
- * @brief Battle screen: show 6 ships, HP, Shop, and Treasure Chest.
- * * @param my_username Current player's username
+ * @brief Battle screen: show 6 ships, HP, Armor, Coin, Shop, and Treasure Chest.
+ * @param my_username Current player's username
  * @param team_left Array of friendly usernames
  * @param team_left_hp Array of friendly HP values
  * @param left_count Number of friendly ships
@@ -100,6 +114,8 @@ int popup_input_ncurses(const char *title, const char *question, char *buffer, s
  * @param team_right_hp Array of enemy HP values
  * @param right_count Number of enemy ships
  * @param my_hp Current player's ship HP
+ * @param my_armor Current player's total armor value
+ * @param my_coin Current player's coin
  * @param active_chest_id ID of the active chest (-1 if none)
  * @param out_target_username Output: selected enemy username
  * @param out_target_username_size Size of output buffer
@@ -109,7 +125,7 @@ int popup_input_ncurses(const char *title, const char *question, char *buffer, s
 int battle_screen_ncurses(const char *my_username,
     const char **team_left, int *team_left_hp, int left_count,
     const char **team_right, int *team_right_hp, int right_count,
-    int my_hp,
+    int my_hp, int my_armor, int my_coin,
     int active_chest_id, 
     char *out_target_username, size_t out_target_username_size,
     int *out_weapon_id);

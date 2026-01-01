@@ -362,6 +362,66 @@ void show_message_ncurses(const char *title, const char *message) {
     endwin();
 }
 
+void show_message_in_battle_screen(const char *title, const char *message) {
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+    
+    int win_h = 8;
+    int win_w = 60;
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+    
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    keypad(win, TRUE);
+    box(win, 0, 0);
+    
+    mvwprintw(win, 1, (win_w - strlen(title)) / 2, "%s", title);
+    
+    // --- KHẮC PHỤC LỖI SEGMENTATION FAULT ---
+    // Nguyên nhân: Hàm strdup có thể gây lỗi trên một số hệ thống nếu không khai báo đúng chuẩn POSIX.
+    // Giải pháp: Thay thế bằng malloc + strcpy thủ công để an toàn tuyệt đối.
+    char *msg_copy = NULL;
+    if (message) {
+        msg_copy = malloc(strlen(message) + 1);
+        if (msg_copy) {
+            strcpy(msg_copy, message);
+        }
+    }
+
+    if (msg_copy) {
+        char *line = strtok(msg_copy, "\n");
+        int y_offset = 0;
+        int msg_y = 3;
+        int msg_x = 2;
+        int max_msg_w = win_w - 4;
+        
+        while (line && y_offset < 3) {
+            mvwprintw(win, msg_y + y_offset, msg_x, "%.*s", max_msg_w, line);
+            line = strtok(NULL, "\n");
+            y_offset++;
+        }
+        free(msg_copy); // Giải phóng bộ nhớ sau khi dùng xong
+    }
+    // ----------------------------------------
+    
+    mvwprintw(win, 6, (win_w - 20) / 2, "Press any key...");
+    
+    wrefresh(win);
+    wgetch(win);
+    
+    delwin(win);
+   
+}
+// Wrapper function để khởi tạo ncurses, hiển thị message, và đóng ncurses
+void show_message_in_battle_screen_with_init(const char *title, const char *message) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    show_message_in_battle_screen(title, message);
+    endwin();
+}
+
 
 int display_menu_ncurses(void) {
     initscr();
@@ -610,7 +670,6 @@ int login_register_menu_ncurses(void) {
     return result;
 }
 
-// Shop main menu: choose Buy Armor or Buy Weapon
 int shop_menu_ncurses(void) {
     initscr();
     cbreak();
@@ -696,7 +755,6 @@ int shop_menu_ncurses(void) {
     return result;
 }
 
-// Armor selection: show types and prices
 int shop_armor_menu_ncurses(int coin) {
     initscr();
     cbreak();
@@ -770,7 +828,6 @@ int shop_armor_menu_ncurses(int coin) {
     return result;
 }
 
-// Weapon selection: show types and prices/details
 int shop_weapon_menu_ncurses(int coin) {
     initscr();
     cbreak();
@@ -883,13 +940,10 @@ int popup_input_ncurses(const char *title, const char *question, char *buffer, s
     if (ch == ERR) return 0;
     return (strlen(buffer) > 0);
 }
-// =====================
-// Battle Screen (6 ships)
-// =====================
 int battle_screen_ncurses(const char *my_username,
     const char **team_left, int *team_left_hp, int left_count,
     const char **team_right, int *team_right_hp, int right_count,
-    int my_hp,
+    int my_hp, int my_armor, int my_coin,
     int active_chest_id,
     char *out_target_username, size_t out_target_username_size,
     int *out_weapon_id) {
@@ -908,15 +962,13 @@ int battle_screen_ncurses(const char *my_username,
     WINDOW *win = newwin(win_h, win_w, (max_y - win_h)/2, (max_x - win_w)/2);
     keypad(win, TRUE); box(win, 0, 0);
 
-    // Header
     mvwprintw(win, 1, 2, "[S] Shop");
-    mvwprintw(win, 1, win_w - 20, "My HP: %d", my_hp);
-    mvwprintw(win, 1, (win_w - 12)/2, "BATTLE FIELD"); 
+    mvwprintw(win, 1, (win_w - 12)/2, "BATTLE FIELD");
+    mvwprintw(win, 1, win_w - 50, "HP:%d Armor:%d Coin:%d", my_hp, my_armor, my_coin); 
 
     int col_left = 4, col_right = win_w - 24, row_top = 4;
     mvwprintw(win, 2, col_left, "TEAM A"); mvwprintw(win, 2, col_right, "TEAM B");
 
-    // Vẽ Rương (Ở giữa)
     if (active_chest_id > 0) {
         wattron(win, A_BOLD | A_REVERSE);
         mvwprintw(win, win_h/2, win_w/2 - 2, "[ $ ]"); 
@@ -924,14 +976,12 @@ int battle_screen_ncurses(const char *my_username,
         mvwprintw(win, win_h/2 + 1, win_w/2 - 4, "Press 'C'");
     }
 
-    // Vẽ Đội Trái (Team A)
     for (int i = 0; i < 3; i++) {
         int y = row_top + i * 5;
         int has_p = (i < left_count && team_left[i]);
         int dead = (has_p && team_left_hp[i] <= 0);
         if (dead) wattron(win, A_DIM);
         
-        // Vẽ khung
         mvwhline(win, y, col_left, '-', 16);
         mvwhline(win, y+3, col_left, '-', 16);
         mvwvline(win, y+1, col_left, '|', 2);
@@ -947,36 +997,29 @@ int battle_screen_ncurses(const char *my_username,
         if (dead) wattroff(win, A_DIM);
     }
 
-    // Logic chọn mục tiêu
-    // Giữ vị trí chọn cũ nếu có thể
     static int sel = 0;
-    // Đảm bảo sel nằm trong phạm vi hiển thị (0-2)
     if (sel > 2) sel = 0;
 
     while (1) {
-        // Vẽ Đội Phải (Team B - Enemy)
         for (int i = 0; i < 3; i++) {
             int y = row_top + i * 5;
             int has_p = (i < right_count && team_right[i]);
             int dead = (has_p && team_right_hp[i] <= 0);
             
-            // Highlight dòng đang chọn (kể cả đã chết hoặc empty, để biết đang trỏ vào đâu)
             if (i == sel) wattron(win, A_REVERSE);
             
-            // Vẽ khung
             mvwhline(win, y, col_right, '-', 16);
             mvwhline(win, y+3, col_right, '-', 16);
             mvwvline(win, y+1, col_right, '|', 2);
             mvwvline(win, y+1, col_right+15, '|', 2);
             
             if (has_p) {
-                // Nếu chết thì làm mờ chữ bên trong (nhưng khung vẫn highlight nếu đang chọn)
                 if (dead) wattron(win, A_DIM);
                 mvwprintw(win, y+1, col_right+2, "%.*s", 12, team_right[i]);
                 mvwprintw(win, y+2, col_right+2, "HP:%d", team_right_hp[i]);
                 if (dead) {
                     mvwprintw(win, y+1, col_right+13, "XX");
-                    wattroff(win, A_DIM); // Tắt làm mờ
+                    wattroff(win, A_DIM);
                 }
             } else {
                 mvwprintw(win, y+1, col_right+2, "[Empty]");
@@ -990,7 +1033,6 @@ int battle_screen_ncurses(const char *my_username,
 
         int ch = wgetch(win);
         if (ch == KEY_UP) {
-            // Cho phép di chuyển tự do 0->2, không cần check sống chết
             sel--; if (sel < 0) sel = 2; 
         } else if (ch == KEY_DOWN) {
             sel++; if (sel > 2) sel = 0;
@@ -1000,7 +1042,6 @@ int battle_screen_ncurses(const char *my_username,
         }
         else if (ch == 27) { delwin(win); endwin(); return -1; }
         else if (ch == '\n' || ch == KEY_ENTER || ch == 'f' || ch == 'F') {
-            // Khi bấm FIRE mới kiểm tra hợp lệ
             if (sel >= 0 && sel < right_count && team_right[sel]) {
                 if (team_right_hp[sel] <= 0) {
                     mvwprintw(win, win_h-2, 2, "TARGET DEAD! Select another.                  ");
@@ -1008,7 +1049,7 @@ int battle_screen_ncurses(const char *my_username,
                 } else {
                     if (out_target_username) strcpy(out_target_username, team_right[sel]);
                     if (out_weapon_id) *out_weapon_id = 0;
-                    delwin(win); endwin(); return 1; // FIRE
+                    delwin(win); endwin(); return 1;
                 }
             } else {
                 mvwprintw(win, win_h-2, 2, "INVALID TARGET! (Empty slot)                  ");

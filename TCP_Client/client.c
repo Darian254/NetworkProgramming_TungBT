@@ -1378,9 +1378,25 @@ int main(int argc, char *argv[]) {
                     if (am_i_team2) {
                         frTeam=tR; frHP=hpR; frCnt=cntR;
                         enTeam=tL; enHP=hpL; enCnt=cntL;
-                    } else { // Team 1 or Spectator
+                    } else {
                         frTeam=tL; frHP=hpL; frCnt=cntL;
                         enTeam=tR; enHP=hpR; enCnt=cntR;
+                    }
+                    
+                    int my_armor = 0, my_coin = 0;
+                    if (send_line(sock, "GETARMOR") >= 0 && recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                        int code_armor, slot1_type, slot1_value, slot2_type, slot2_value;
+                        if (sscanf(recvbuf, "%d %d %d %d %d", &code_armor, &slot1_type, &slot1_value, &slot2_type, &slot2_value) >= 5 
+                            && code_armor == RESP_ARMOR_INFO_OK) {
+                            my_armor = slot1_value + slot2_value;
+                        }
+                    }
+                    if (send_line(sock, "GETCOIN") >= 0 && recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                        int code_coin;
+                        long coin_tmp = 0;
+                        if (sscanf(recvbuf, "%d %ld", &code_coin, &coin_tmp) >= 2 && code_coin == RESP_COIN_OK) {
+                            my_coin = (int)coin_tmp;
+                        }
                     }
                     
                     char target[128]=""; int wid=0;
@@ -1388,20 +1404,19 @@ int main(int argc, char *argv[]) {
                         my_username, 
                         frTeam, frHP, frCnt, 
                         enTeam, enHP, enCnt, 
-                        my_hp, current_chest_id, 
+                        my_hp, my_armor, my_coin,
+                        current_chest_id, 
                         target, sizeof(target), &wid
                     );
                     
-                    // Cleanup
                     for(int i=0; i<3; i++) { if(tL_names[i]) free(tL_names[i]); if(tR_names[i]) free(tR_names[i]); }
 
-                    if (res == 0) { // SHOP
+                    if (res == 0) {
                         int shop_sel = shop_menu_ncurses();
                         if (shop_sel == -1) {
-                            continue; // Quay lại battle screen
+                            continue;
                         }
                         if (shop_sel == 0) {
-                            // Buy Armor flow
                             int coin = -1;
                             if (send_line(sock, "GETCOIN") >= 0 && recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
                                 int code_tmp = 0;
@@ -1411,8 +1426,8 @@ int main(int argc, char *argv[]) {
                                 }
                             }
                             int armor_sel = shop_armor_menu_ncurses(coin);
-                            if (armor_sel == -1) continue; // cancelled, quay lại battle screen
-                            int armor_type = (armor_sel == 0) ? 1 : 2; // 1 BASIC, 2 ENHANCED
+                            if (armor_sel == -1) continue;
+                            int armor_type = (armor_sel == 0) ? 1 : 2;
                             snprintf(cmd, sizeof(cmd), "BUYARMOR %d", armor_type);
                             if (send_line(sock, cmd) < 0) break;
                             if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
@@ -1420,7 +1435,6 @@ int main(int argc, char *argv[]) {
                                 show_message_ncurses("BUY ARMOR", p);
                             }
                         } else if (shop_sel == 1) {
-                            // Buy Weapon flow
                             int coin = -1;
                             if (send_line(sock, "GETCOIN") >= 0 && recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
                                 int code_tmp = 0;
@@ -1430,8 +1444,8 @@ int main(int argc, char *argv[]) {
                                 }
                             }
                             int weapon_sel = shop_weapon_menu_ncurses(coin);
-                            if (weapon_sel == -1) continue; // cancelled, quay lại battle screen
-                            int weapon_type = weapon_sel; // 0=CANNON, 1=LASER, 2=MISSILE
+                            if (weapon_sel == -1) continue;
+                            int weapon_type = weapon_sel;
                             snprintf(cmd, sizeof(cmd), "BUY_WEAPON %d", weapon_type);
                             if (send_line(sock, cmd) < 0) break;
                             if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
@@ -1439,12 +1453,12 @@ int main(int argc, char *argv[]) {
                                 show_message_ncurses("BUY WEAPON", p);
                             }
                         }
-                    } else if (res == 1) { // FIRE
+                    } else if (res == 1) {
                         snprintf(cmd, sizeof(cmd), "FIRE %s %d", target, wid); send_line(sock, cmd);
                         if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
                             char p[1024]; beautify_result(recvbuf, p, sizeof(p)); show_message_ncurses("FIRE", p);
                         }
-                    } else if (res == 2) { // OPEN CHEST
+                    } else if (res == 2) {
                         snprintf(cmd, sizeof(cmd), "CHEST_OPEN %d", current_chest_id); send_line(sock, cmd);
                         if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
                             int qc; char q[256];
@@ -1454,9 +1468,7 @@ int main(int argc, char *argv[]) {
                                     snprintf(cmd, sizeof(cmd), "CHEST_OPEN %d %s", current_chest_id, ans);
                                     send_line(sock, cmd);
                                     
-                                    // Vòng lặp chờ kết quả mở rương
                                     int coin_before = -1;
-                                    // Lấy coin trước khi mở rương
                                     if (send_line(sock, "GETCOIN") >= 0 && recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
                                         int code_tmp = 0;
                                         if (sscanf(recvbuf, "%d %d", &code_tmp, &coin_before) != 2) {
@@ -1468,8 +1480,7 @@ int main(int argc, char *argv[]) {
                                         if (recv_line(sock, recvbuf, sizeof(recvbuf)) <= 0) break;
                                         int rc; sscanf(recvbuf, "%d", &rc);
                                         
-                                        if (rc == RESP_CHEST_OPEN_OK) { // 145 Success
-                                            // Lấy coin sau khi mở rương
+                                        if (rc == RESP_CHEST_OPEN_OK) {
                                             int coin_after = -1;
                                             if (send_line(sock, "GETCOIN") >= 0 && recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
                                                 int code_tmp = 0;
@@ -1485,42 +1496,30 @@ int main(int argc, char *argv[]) {
                                             } else {
                                                 snprintf(msg, sizeof(msg), "You opened the chest!");
                                             }
-                                            // Hiển thị message thành công
-                                            show_message_ncurses("SUCCESS", msg);
+                                            show_message_in_battle_screen_with_init("SUCCESS", msg);
                                             current_chest_id = -1; 
-                                            break; // Break khỏi vòng lặp chờ response
+                                            break;
                                         } 
-                                        else if (rc == RESP_CHEST_BROADCAST) { // 210 Broadcast
-                                            // 210 đến nghĩa là rương đã mất (do mình hoặc người khác).
-                                            // Nếu mình mở đúng, 145 sẽ đến. Nếu chỉ nhận 210 mà không có 145, nghĩa là người khác mở hoặc chỉ là thông báo.
-                                            // Logic ở đây: nhận 210 coi như xong việc, thoát vòng lặp.
-                                            // Để tránh in "FAILED", ta coi như thông tin rương đã cập nhật.
+                                        else if (rc == RESP_CHEST_BROADCAST) {
                                             current_chest_id = -1; 
-                                            // Không break ngay, đợi xem có 145 không? 
-                                            // Thực tế server gửi 145 cho người mở và 210 cho tất cả.
-                                            // Nếu ta là người mở, ta sẽ nhận cả hai.
-                                            // Nên ta cứ continue đợi 145.
                                             continue; 
                                         } 
                                         else if (rc == RESP_WRONG_ANSWER || rc == RESP_CHEST_OPEN_FAIL) {
                                             char p[1024]; beautify_result(recvbuf, p, sizeof(p));
-                                            show_message_ncurses("FAILED", p); 
-                                            break; // Break khỏi vòng lặp chờ response
+                                            show_message_in_battle_screen_with_init("FAILED", p);
+                                            break;
                                         }
                                     }
-                                    // Sau khi xử lý xong mở rương (thành công hoặc thất bại), quay lại battle screen
                                     continue;
                                 } else {
-                                    // Người dùng cancel popup, quay lại battle screen
                                     continue;
                                 }
                             } else { 
-                                show_message_ncurses("ERROR", "Cannot get question."); 
-                                continue; // Quay lại battle screen
+                                show_message_in_battle_screen_with_init("ERROR", "Cannot get question.");
+                                continue;
                             }
                         } else {
-                            // Không nhận được response từ server, có thể là lỗi kết nối
-                            break; // Thoát khỏi vòng lặp battle screen
+                            break;
                         }
                     } else if (res == -1) break;
                 }
