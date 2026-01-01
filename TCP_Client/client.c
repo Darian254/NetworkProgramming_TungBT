@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include "ui.h"
 
 #include "../TCP_Server/config.h"     
@@ -15,7 +16,82 @@
 
 #define BUFF_SIZE 8192 // Tăng kích thước buffer để nhận danh sách dài
 
+/**
+ * @brief Check and handle broadcast messages (like chest drop 141)
+ * Non-blocking check for incoming messages
+ * @param sock Socket descriptor
+ * @return 1 if message was handled, 0 if no message
+ */
+static int check_broadcast_messages(int sock) {
+    fd_set readfds;
+    struct timeval timeout;
+    
+    FD_ZERO(&readfds);
+    FD_SET(sock, &readfds);
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 0; // Non-blocking: Kiểm tra xong đi ngay
+    
+    // Kiểm tra xem socket có dữ liệu đến không
+    if (select(sock + 1, &readfds, NULL, NULL, &timeout) > 0) {
+        if (FD_ISSET(sock, &readfds)) {
+            char msg[BUFF_SIZE];
+            ssize_t n = recv_line(sock, msg, sizeof(msg));
+            
+            if (n > 0) {
+                int code;
+                // Đọc mã code đầu tiên của tin nhắn
+                if (sscanf(msg, "%d", &code) == 1) {
+                    
+                    switch (code) {
+                        // --- CASE 1: Rương rơi (141) ---
+                        // Format: 141 <id> <type> <x> <y>
+                        case RESP_CHEST_DROP_OK: { 
+                            int chest_id, chest_type, pos_x, pos_y;
+                            // %*d để bỏ qua số code đã đọc
+                            if (sscanf(msg, "%*d %d %d %d %d", &chest_id, &chest_type, &pos_x, &pos_y) == 4) {
+                                printf("\n\n[EVENT] 🎁 MỘT RƯƠNG KHO BÁU VỪA RƠI! ID: %d (Tại: %d,%d)\n", chest_id, pos_x, pos_y);
+                                printf("Select an option: "); fflush(stdout); // Nhắc lại lệnh để người dùng đỡ bị trôi
+                            }
+                            break;
+                        }
 
+                        // --- CASE 2: Nhận lời thách đấu (150) ---
+                        // Format: 150 CHALLENGE_RECEIVED <Name> <TeamID> <ChalID>
+                        case 150: { 
+                            char enemy_team[64];
+                            int enemy_id, c_id;
+                            if (sscanf(msg, "%*d CHALLENGE_RECEIVED %s %d %d", enemy_team, &enemy_id, &c_id) == 3) {
+                                printf("\n\n>>> [ALERT] ⚔️ Đội '%s' (ID: %d) ĐANG THÁCH ĐẤU BẠN!\n", enemy_team, enemy_id);
+                                printf(">>> Nhập lệnh 42 và ID: %d để chấp nhận ngay!\n", c_id);
+                                printf("Select an option: "); fflush(stdout);
+                            }
+                            break;
+                        }
+
+                        // --- CASE 3: Thông báo bắt đầu trận đấu (151) ---
+                        // Format: 151 MATCH_STARTED <MatchID>
+                        case 151: { 
+                            int m_id;
+                            if (sscanf(msg, "%*d MATCH_STARTED %d", &m_id) == 1) {
+                                printf("\n\n>>> [INFO] 🚀 ĐỐI THỦ ĐÃ CHẤP NHẬN! Trận đấu %d bắt đầu.\n", m_id);
+                                printf(">>> Hãy chuẩn bị chiến đấu!\n");
+                                printf("Select an option: "); fflush(stdout);
+                            }
+                            break;
+                        }
+
+                        // Các tin nhắn hệ thống khác (nếu có)
+                        default:
+                            // Không làm gì với các code lạ để tránh rác màn hình
+                            break;
+                    }
+                    return 1; // Đã xử lý tin nhắn
+                }
+            }
+        }
+    }
+    return 0; // Không có tin nhắn nào
+}
 /**
  * @brief Print program usage for the TCP client.
  * @param prog Executable name (argv[0]).
@@ -555,36 +631,82 @@ int main(int argc, char *argv[]) {
 
                 if (strlen(team_id_str) == 0) break;
 
-                snprintf(cmd, sizeof(cmd), "START_MATCH %s", team_id_str);
+                // Gửi SEND_CHALLENGE (chỉ tạo challenge record, chưa tạo match)
+                snprintf(cmd, sizeof(cmd), "SEND_CHALLENGE %s", team_id_str);
 
                 if (send_line(sock, cmd) < 0) {
                     perror("send() error");
                     break;
                 }
                 if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
-                    char pretty[1024];
-                    beautify_result(recvbuf, pretty, sizeof(pretty));
-                    printf("%s", pretty);
-                }
-                break;
-            }
-
-            // --- OPTION 42: THẢ RƯƠNG ---
-            case FUNC_DROP_CHEST: { 
-                if (send_line(sock, "DEBUG_CHEST") < 0) break;
-                
-                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
-                    int code, cid;
-                    // Server trả về: 200 CHEST_DROPPED <ID>
-                    if (sscanf(recvbuf, "%d CHEST_DROPPED %d", &code, &cid) == 2 && code == 200) {
-                        //  In ra ID rương sạch sẽ
-                        printf("\n>>> SUCCESS: Chest dropped! ID: %d\n", cid);
+                    int code, challenge_id;
+                    // Parse: 130 CHALLENGE_SENT <challenge_id>
+                    if (sscanf(recvbuf, "%d CHALLENGE_SENT %d", &code, &challenge_id) == 2 && code == RESP_CHALLENGE_SENT) {
+                        printf("Challenge sent successfully! Challenge ID: %d\n", challenge_id);
+                        printf("Waiting for opponent to accept...\n");
                     } else {
-                        // Nếu server báo lỗi khác
                         char pretty[1024];
                         beautify_result(recvbuf, pretty, sizeof(pretty));
                         printf("%s", pretty);
                     }
+                }
+                break;
+            }
+
+            case FUNC_ACCEPT_CHALLENGE: { /* Accept Challenge */
+                char challenge_id_str[32];
+                printf("Enter Challenge ID to accept: ");
+                fflush(stdout);
+                safeInput(challenge_id_str, sizeof(challenge_id_str));
+                
+                if (strlen(challenge_id_str) == 0) break;
+                
+                snprintf(cmd, sizeof(cmd), "ACCEPT_CHALLENGE %s", challenge_id_str);
+                if (send_line(sock, cmd) < 0) break;
+                
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    // Kiểm tra xem đây có phải là broadcast message 141 không
+                    int code_check;
+                    if (sscanf(recvbuf, "%d", &code_check) == 1 && code_check == RESP_CHEST_DROP_OK) {
+                        // Đây là broadcast 141, xử lý riêng
+                        int chest_id, chest_type, pos_x, pos_y;
+                        if (sscanf(recvbuf, "%d %d %d %d %d", &code_check, &chest_id, &chest_type, &pos_x, &pos_y) == 5) {
+                            printf("\n[EVENT] Một rương kho báu vừa rơi! ID: %d\n", chest_id);
+                        }
+                        // Tiếp tục đợi response thực sự từ ACCEPT_CHALLENGE
+                        if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                            char pretty[1024];
+                            beautify_result(recvbuf, pretty, sizeof(pretty));
+                            printf("%s", pretty);
+                        }
+                    } else {
+                        // Đây là response bình thường từ ACCEPT_CHALLENGE
+                        char pretty[1024];
+                        beautify_result(recvbuf, pretty, sizeof(pretty));
+                        printf("%s", pretty);
+                    }
+                    
+                    // Check thêm broadcast messages nếu có
+                    check_broadcast_messages(sock);
+                }
+                break;
+            }
+
+            case FUNC_DECLINE_CHALLENGE: { /* Decline Challenge */
+                char challenge_id_str[32];
+                printf("Enter Challenge ID to decline: ");
+                fflush(stdout);
+                safeInput(challenge_id_str, sizeof(challenge_id_str));
+                
+                if (strlen(challenge_id_str) == 0) break;
+                
+                snprintf(cmd, sizeof(cmd), "DECLINE_CHALLENGE %s", challenge_id_str);
+                if (send_line(sock, cmd) < 0) break;
+                
+                if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                    char pretty[1024];
+                    beautify_result(recvbuf, pretty, sizeof(pretty));
+                    printf("%s", pretty);
                 }
                 break;
             }
@@ -647,7 +769,7 @@ int main(int argc, char *argv[]) {
                     }
                 }
                 break;
-            }27
+            }
 
             case FUNC_JOIN_REQUEST: { 
                 char team_name[128];
@@ -1066,6 +1188,9 @@ int main(int argc, char *argv[]) {
                 break;
             }
         }
+        
+        // Check for broadcast messages (like chest drop) after each command
+        check_broadcast_messages(sock);
         
         printf("\n");
     }

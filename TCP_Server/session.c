@@ -343,7 +343,25 @@ int server_handle_start_match(ServerSession *session, int opponent_team_id) {
     session->current_match_id = new_match->match_id;
     update_session_by_socket(session->socket_fd, session);
     
-    // 14. Success
+    // 14. Cập nhật current_match_id cho tất cả players trong match TRƯỚC
+    extern TeamMember team_members[];
+    extern int team_member_count;
+    SessionNode *current = session_mgr.head;
+    while (current != NULL) {
+        if (current->session.isLoggedIn) {
+            int user_team_id_check = find_team_id_by_username(current->session.username);
+            if (user_team_id_check == user_team_id || user_team_id_check == opponent_team_id) {
+                current->session.current_match_id = new_match->match_id;
+                update_session_by_socket(current->session.socket_fd, &current->session);
+            }
+        }
+        current = current->next;
+    }
+    
+    // 15. Không gọi broadcast_chest_drop() ở đây nữa
+    // Router sẽ gọi broadcast sau khi gửi response để đảm bảo thứ tự đúng
+    
+    // 16. Success - trả về match_id thông qua session->current_match_id
     return RESP_START_MATCH_OK;
 }
 
@@ -578,19 +596,52 @@ int calculate_and_update_damage(Ship* attacker, Ship* target, int weapon_type, F
 }
 int server_handle_send_challenge(ServerSession *session, int target_team_id, int *new_challenge_id) {
     if (!session || !session->isLoggedIn) return 315; // RESP_NOT_LOGGED
-
     
+    // --- 1. TÌM TEAM MÌNH (Người gửi) ---
+    // Mục đích: Để lấy Tên Đội (my_team->name) điền vào tin nhắn gửi cho đối thủ
     Team *my_team = find_team_by_id(session->current_team_id);
-    if (!my_team || strcmp(my_team->creator_username, session->username) != 0) {
+    if (!my_team) {
+        return 327; // RESP_NOT_IN_TEAM
+    }
+    // Kiểm tra quyền (chỉ Leader mới được thách đấu)
+    if (strcmp(my_team->creator_username, session->username) != 0) {
         return 316; // RESP_NOT_CREATOR
     }
-    
 
+    // --- 2. TẠO CHALLENGE TRONG DB ---
     int id = create_challenge_record(session->current_team_id, target_team_id);
     if (id == -1) return 500; // RESP_INTERNAL_ERROR
 
-    *new_challenge_id = id;
-    return RESP_CHALLENGE_SENT;
+    // Trả ID ra ngoài (nếu cần)
+    if (new_challenge_id) {
+        *new_challenge_id = id;
+    }
+
+    // --- 3. TÌM TEAM BẠN (Đối thủ) ---
+    // Mục đích: Để tìm Socket của Leader đối thủ (target_session) để gửi tin
+    Team *target_team = find_team_by_id(target_team_id);
+    if (target_team) {
+        // Tìm session của Leader đội bạn
+        SessionNode *target_session = find_session_by_username(target_team->creator_username);
+        
+        // Nếu Leader đối thủ đang Online thì gửi thông báo
+        if (target_session) {
+            char msg[512];
+            
+            // Format tin nhắn: 150 <Tên_Team_Thách_Đấu> <ID_Team_Thách_Đấu> <Challenge_ID>
+            // Ở đây dùng my_team->name để đối thủ biết ai đang thách đấu mình
+            snprintf(msg, sizeof(msg), "%d CHALLENGE_RECEIVED %s %d %d\r\n", 
+                     150, // Mã RESP_CHALLENGE_RECEIVED
+                     my_team->name, 
+                     my_team->team_id, 
+                     id);
+            
+            // Gửi tin nhắn vào Socket của đối thủ
+            write(target_session->session.socket_fd, msg, strlen(msg));
+        }
+    }
+
+    return 130; // RESP_CHALLENGE_SENT
 }
 
 int server_handle_accept_challenge(ServerSession *session, int challenge_id) {
@@ -606,12 +657,63 @@ int server_handle_accept_challenge(ServerSession *session, int challenge_id) {
         return 316; 
     }
     
-
+    // Đánh dấu challenge đã được accept
     ch->status = CHALLENGE_ACCEPTED;
     
-     create_match(ch->sender_team_id, ch->target_team_id);
+    // Tìm session của sender team leader để gọi start_match
+    Team *sender_team = find_team_by_id(ch->sender_team_id);
+    if (!sender_team) {
+        return RESP_TEAM_NOT_FOUND;
+    }
     
-    return RESP_CHALLENGE_ACCEPTED;
+    SessionNode *sender_session_node = find_session_by_username(sender_team->creator_username);
+    if (!sender_session_node) {
+        // Nếu sender không online, vẫn tạo match nhưng không thể drop chest ngay
+        // Fallback: tạo match trực tiếp
+        Match *new_match = create_match(ch->sender_team_id, ch->target_team_id);
+        if (!new_match) {
+            return RESP_MATCH_CREATE_FAILED;
+        }
+        // Vẫn thả rương và update sessions
+        broadcast_chest_drop(new_match->match_id, -1);
+        SessionNode *current = session_mgr.head;
+        while (current != NULL) {
+            if (current->session.isLoggedIn) {
+                int user_team_id = find_team_id_by_username(current->session.username);
+                if (user_team_id == ch->sender_team_id || user_team_id == ch->target_team_id) {
+                    current->session.current_match_id = new_match->match_id;
+                    update_session_by_socket(current->session.socket_fd, &current->session);
+                }
+            }
+            current = current->next;
+        }
+        return RESP_CHALLENGE_ACCEPTED;
+    }
+
+    int result = server_handle_start_match(&sender_session_node->session, ch->target_team_id);
+    // Gọi server_handle_start_match() với session của sender team
+    // Logic drop chest và update sessions đã có trong server_handle_start_match()
+    if (result == RESP_START_MATCH_OK) { // 126
+        
+        // --- LOGIC GỬI THÔNG BÁO CHO NGƯỜI THÁCH ĐẤU (CLIENT A) ---
+        // Báo cho A biết là B đã chấp nhận rồi, vào game thôi
+        char msg[512];
+        int match_id = sender_session_node->session.current_match_id;
+        
+        // Sử dụng mã 151 (RESP_MATCH_STARTED_NOTIFY)
+        // Format: 151 <Match_ID>
+        snprintf(msg, sizeof(msg), "%d MATCH_STARTED %d\r\n", 
+                 RESP_MATCH_STARTED_NOTIFY, // 151
+                 match_id);
+                 
+        // Gửi bất đồng bộ tới socket của A
+        write(sender_session_node->session.socket_fd, msg, strlen(msg));
+        
+        return RESP_CHALLENGE_ACCEPTED; // 131 (Trả về cho B)
+    } else {
+        return result; 
+    
+    }
 }
 
 int server_handle_decline_challenge(ServerSession *session, int challenge_id) {
@@ -674,14 +776,15 @@ int broadcast_chest_drop(int match_id, int exclude_socket_fd) {
     snprintf(notify, sizeof(notify), "%d %d %d %d %d\r\n", 
              RESP_CHEST_DROP_OK, c_id, (int)chest->type, chest->position_x, chest->position_y);
 
-    // 3. Gửi cho mọi người TRỪ người thả rương (exclude_socket_fd)
+    // 3. Gửi cho TẤT CẢ players trong match (nếu exclude_socket_fd == -1 thì gửi cho tất cả)
     SessionNode *current = session_mgr.head;
     while (current != NULL) {
         if (current->session.isLoggedIn && 
-            current->session.current_match_id == match_id &&
-            current->session.socket_fd != exclude_socket_fd) { // <--- QUAN TRỌNG: Loại trừ chính mình
-            
-            (void)write(current->session.socket_fd, notify, strlen(notify));
+            current->session.current_match_id == match_id) {
+            // Nếu exclude_socket_fd == -1 thì gửi cho tất cả, ngược lại loại trừ exclude_socket_fd
+            if (exclude_socket_fd == -1 || current->session.socket_fd != exclude_socket_fd) {
+                (void)write(current->session.socket_fd, notify, strlen(notify));
+            }
         }
         current = current->next;
     }
@@ -689,7 +792,7 @@ int broadcast_chest_drop(int match_id, int exclude_socket_fd) {
     printf("[SERVER INFO] Chest %d dropped in match %d\n", c_id, match_id);
     return c_id;
 }
-int server_handle_open_chest(ServerSession *session, int chest_id, const char *answer) {
+int server_handle_open_chest(ServerSession *session, UserTable *ut, int chest_id, const char *answer) {
     if (!session || !session->isLoggedIn) return RESP_NOT_LOGGED; // 315
 
     TreasureChest *chest = find_chest_by_id_in_match(session->current_match_id, chest_id);
@@ -708,16 +811,25 @@ int server_handle_open_chest(ServerSession *session, int chest_id, const char *a
     // --- TRẢ LỜI ĐÚNG ---
     chest->is_collected = true;
     
-    // Tính thưởng
+    // Tính thưởng và cộng vào user->coin (FIX: không dùng session->coins)
     int reward = (chest->type == CHEST_BRONZE) ? 100 : (chest->type == CHEST_SILVER ? 500 : 2000);
-    session->coins += reward; 
+    if (ut) {
+        updateUserCoin(ut, session->username, reward);
+    }
 
     // Broadcast thông báo cho mọi người biết rương đã bị nhặt
     char notify[BUFF_SIZE];
     snprintf(notify, sizeof(notify), "210 CHEST_COLLECTED %s %d\r\n", session->username, chest_id);
     
-    // Gửi broadcast (bạn có thể gọi hàm gửi broadcast riêng nếu muốn, hoặc loop tại đây)
-    // Tạm thời bỏ qua loop broadcast ở đây để code gọn, tập trung vào return.
+    // Gửi broadcast cho tất cả players trong match
+    SessionNode *current = session_mgr.head;
+    while (current != NULL) {
+        if (current->session.isLoggedIn && 
+            current->session.current_match_id == session->current_match_id) {
+            (void)write(current->session.socket_fd, notify, strlen(notify));
+        }
+        current = current->next;
+    }
 
     return RESP_CHEST_OPEN_OK; // 127
 }

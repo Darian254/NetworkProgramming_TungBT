@@ -237,7 +237,18 @@ void command_routes(int client_sock, char *command) {
             response_code = RESP_SYNTAX_ERROR;
         }
         snprintf(response, sizeof(response), "%d\r\n", response_code);
+        // Gửi response ngay lập tức để đảm bảo response đến trước broadcast chest drop
+        connection_send(client_sock, response, strlen(response));
         log_activity("START_MATCH", session->username, session->isLoggedIn, payload, response_code);
+        
+        // Sau khi gửi response, broadcast chest drop nếu match được tạo thành công
+        if (response_code == RESP_START_MATCH_OK) {
+            int match_id = session->current_match_id;
+            if (match_id > 0) {
+                broadcast_chest_drop(match_id, -1);
+            }
+        }
+        return; // Không gọi connection_send ở cuối nữa
     }
     else if (strcmp(type, "END_MATCH") == 0) {
         int match_id = -1;
@@ -430,6 +441,19 @@ void command_routes(int client_sock, char *command) {
         int cid = atoi(payload);
         response_code = server_handle_accept_challenge(session, cid);
         snprintf(response, sizeof(response), "%d CHALLENGE_ACCEPTED %d\r\n", response_code, cid);
+        // Gửi response ngay lập tức để đảm bảo response đến trước broadcast chest drop
+        connection_send(client_sock, response, strlen(response));
+        log_activity("ACCEPT_CHALLENGE", session->username, session->isLoggedIn, payload, response_code);
+        
+        // Sau khi gửi response, broadcast chest drop nếu challenge được accept thành công
+        if (response_code == RESP_CHALLENGE_ACCEPTED) {
+            // Lấy match_id từ session hiện tại (đã được cập nhật trong server_handle_accept_challenge)
+            int match_id = session->current_match_id;
+            if (match_id > 0) {
+                broadcast_chest_drop(match_id, -1);
+            }
+        }
+        return; // Không gọi connection_send ở cuối nữa
     }
     else if (strcmp(type, "DECLINE_CHALLENGE") == 0) {
         int cid = atoi(payload);
@@ -464,7 +488,7 @@ void command_routes(int client_sock, char *command) {
         } 
         else if (args == 2) {
             // TRƯỜNG HỢP 2: Client gửi ID + Đáp án -> Muốn trả lời
-            response_code = server_handle_open_chest(session, chest_id, answer);
+            response_code = server_handle_open_chest(session, app_context_get_user_table(), chest_id, answer);
             
             if (response_code == RESP_CHEST_OPEN_OK) // 127
                 snprintf(response, sizeof(response), "127 CHEST_OPEN_SUCCESS\r\n");

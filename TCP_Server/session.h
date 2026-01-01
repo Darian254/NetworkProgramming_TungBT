@@ -301,7 +301,7 @@ int broadcast_chest_drop(int match_id, int exclude_socket_fd);
 
 
 
-int server_handle_open_chest(ServerSession *session, int chest_id, const char *answer, );
+int server_handle_open_chest(ServerSession *session, UserTable *ut, int chest_id, const char *answer);
 void get_chest_puzzle(ChestType type, char *q_out, char *a_out);
 
 

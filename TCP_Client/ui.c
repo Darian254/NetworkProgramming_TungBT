@@ -60,9 +60,10 @@ void displayMenu() {
     printf("38. Get Weapon Info\n");
     printf(" [GAME ACTIONS]\n");
     printf("39. Fire (Attack)\n");
-    printf("40. Challenge Team\n");
+    printf("40. Challenge Team (Send Challenge)\n");
     printf("41. Open Chest\n");
-    printf("42. Drop Chest (Debug)\n");
+    printf("42. Accept Challenge\n");
+    printf("43. Decline Challenge\n");
     printf("==================================\n");
     printf("Select an option: ");
 }
