@@ -23,113 +23,64 @@
  * @return 1 if message was handled, 0 if no message
  */
 static int last_challenge_id = -1;
+static int current_chest_id = -1;
 static int check_broadcast_messages(int sock) {
     int messages_handled = 0;
     
-    // Vòng lặp để xử lý tất cả messages đang chờ
     while (1) {
         fd_set readfds;
         struct timeval timeout;
-        
         FD_ZERO(&readfds);
         FD_SET(sock, &readfds);
         timeout.tv_sec = 0;
-        timeout.tv_usec = 0; // Non-blocking
+        timeout.tv_usec = 0;
         
         if (select(sock + 1, &readfds, NULL, NULL, &timeout) > 0) {
             if (FD_ISSET(sock, &readfds)) {
                 char msg[BUFF_SIZE];
-                // Dùng MSG_PEEK để xem trước dữ liệu mà không lấy ra khỏi buffer
-                // Điều này giúp tránh việc hàm này "ăn mất" response của các lệnh chính (như LOGIN, FIRE chủ động)
-                // Tuy nhiên, logic hiện tại của bạn dùng recv_line luôn, nên ta giả định
-                // server gửi broadcast khi client đang IDLE (không chờ response lệnh nào).
-                
+                // Dùng MSG_PEEK để kiểm tra, nhưng ở đây ta dùng recv_line luôn vì thiết kế hiện tại
                 ssize_t n = recv_line(sock, msg, sizeof(msg));
                 
                 if (n > 0) {
                     int code;
                     if (sscanf(msg, "%d", &code) == 1) {
-                        
-                        switch (code) {
-                        // --- CASE 1: Rương rơi (141) ---
-                        case RESP_CHEST_DROP_OK: { 
-                            int chest_id, chest_type, pos_x, pos_y;
-                            if (sscanf(msg, "%*d %d %d %d %d", &chest_id, &chest_type, &pos_x, &pos_y) == 4) {
-                                printf("\n\n[EVENT] 🎁 MỘT RƯƠNG KHO BÁU VỪA RƠI! ID: %d (Tại: %d,%d)\n", chest_id, pos_x, pos_y);
-                                printf("Select an option: "); fflush(stdout);
+                        // Xử lý các tin nhắn broadcast
+                        if (code == RESP_CHEST_DROP_OK) { // 141
+                            int c_id, c_type, px, py;
+                            if (sscanf(msg, "%*d %d %d %d %d", &c_id, &c_type, &px, &py) == 4) {
+                                current_chest_id = c_id;
+                                printf("\n[EVENT] Rương rơi ID: %d\n", c_id);
+                                fflush(stdout);
                             }
-                            break;
                         }
-
-                        // --- CASE 2: Nhận lời thách đấu (150) ---
-                        case RESP_CHALLENGE_RECEIVED: { 
-                            char enemy_team[64];
-                            int enemy_id, c_id;
-                            if (sscanf(msg, "%*d CHALLENGE_RECEIVED %s %d %d", enemy_team, &enemy_id, &c_id) == 3) {
-                                last_challenge_id = c_id; 
-                                printf("\n\n>>> [ALERT] ⚔️ Đội '%s' (ID: %d) ĐANG THÁCH ĐẤU BẠN!\n", enemy_team, enemy_id);
-                                printf(">>> Nhập lệnh 42 để chấp nhận ngay!\n"); 
-                                printf("Select an option: "); fflush(stdout);
+                        else if (code == RESP_CHEST_BROADCAST) { // 210
+                            int cid;
+                            char collector[128];
+                            if (sscanf(msg, "%*d CHEST_COLLECTED %s %d", collector, &cid) == 2) {
+                                if (current_chest_id == cid) current_chest_id = -1;
+                                printf("\n[INFO] %s đã nhặt rương %d\n", collector, cid);
+                                fflush(stdout);
                             }
-                            break;
                         }
-
-                        // --- CASE 3: Thông báo bắt đầu trận đấu (151) ---
-                        case RESP_MATCH_STARTED_NOTIFY: { 
-                            int m_id;
-                            if (sscanf(msg, "%*d MATCH_STARTED %d", &m_id) == 1) {
-                                printf(">>> Hãy chuẩn bị chiến đấu! (Vào Battle Screen - 44)\n");
-                                printf("Select an option: "); fflush(stdout);
-                            }
-                            break;
+                        else if (code == RESP_MATCH_STARTED_NOTIFY) { // 151
+                            printf("\n>>> MATCH STARTED!\n");
+                            fflush(stdout);
                         }
-
-                        // --- CASE 4: Fire Event (200) ---
-                        // Sửa từ 131 thành 200 (RESP_FIRE_OK) theo config.h
-                        // Server gửi broadcast dạng: 200 FIRE_EVENT <attacker> <target> <damage> <hp> <armor>
-                        case RESP_FIRE_OK: { 
-                            char event_type[64];
-                            char attacker[128], target[128];
-                            int damage, hp, armor;
-
-                            // Kiểm tra xem có phải chuỗi "FIRE_EVENT" không để phân biệt với response bắn thường
-                            if (sscanf(msg, "%*d %63s %127s %127s %d %d %d", event_type, attacker, target, &damage, &hp, &armor) == 6
-                                && strcmp(event_type, "FIRE_EVENT") == 0) {
-                                
-                                printf("\n\n>>> [WARNING] 💥 Bạn bị %s bắn trúng! Mất %d máu. HP còn lại: %d\n", attacker, damage, hp);
-                                printf("Select an option: "); fflush(stdout);
-                            }
-                            // Nếu code là 200 nhưng KHÔNG phải FIRE_EVENT, có thể đó là response cho lệnh bắn của chính mình
-                            // nhưng bị lọt vào đây (race condition). Ta cứ in ra hoặc bỏ qua.
-                            break;
+                        else if (code == RESP_CHALLENGE_RECEIVED) { // 150
+                            // ... In ra thông báo ...
+                            printf("\n>>> Có lời mời thách đấu!\n");
+                            fflush(stdout);
                         }
-
-                        // --- CASE 5: Challenge Accepted (131) ---
-                        // Đây là code 131 thực sự theo config.h
-                        case RESP_CHALLENGE_ACCEPTED: {
-                            printf("\n\n>>> [INFO] ✅ Lời thách đấu của bạn đã được chấp nhận!\n");
-                            printf("Select an option: "); fflush(stdout);
-                            break;
-                        }
-                        
-                        // --- CASE 6: Rương đã mở (145) ---
-                        case RESP_CHEST_OPEN_OK: {
-                            // Thường thì response này chờ ở hàm mở rương, nhưng nếu là broadcast người khác mở:
-                            // Cần server gửi mã khác hoặc format khác. Tạm thời giữ nguyên log logic cũ.
-                            // printf("\n[INFO] Một rương đã được mở.\n"); 
-                            break;
-                        }
-
-                        // Các tin nhắn hệ thống khác
-                        default:
-                            break;
+                        else if (code == RESP_FIRE_OK) { // 200 FIRE_EVENT
+                             // ... In ra thông báo bị bắn ...
+                             printf("\n>>> FIRE EVENT received\n");
+                             fflush(stdout);
                         }
                         messages_handled = 1;
                     }
                 }
             }
         } else {
-            // Không còn message nào
             break;
         }
     }
@@ -734,44 +685,37 @@ int main(int argc, char *argv[]) {
             }
 
             case FUNC_ACCEPT_CHALLENGE: { /* Accept Challenge */
-                if (last_challenge_id == -1) {
-                    break;
-                }
+                // if (last_challenge_id == -1) {
+                //     break;
+                // }
                 snprintf(cmd, sizeof(cmd), "ACCEPT_CHALLENGE"); // Gửi lệnh không kèm ID
                 if (send_line(sock, cmd) < 0) break;
                 
-                // Đọc response chính (131 CHALLENGE_ACCEPTED)
+                // Đọc response chính (131 CHALLENGE_ACCEPTED) - chỉ in INFO và EVENT
                 int response_received = 0;
                 while (!response_received) {
                     if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
                         int code_check;
                         if (sscanf(recvbuf, "%d", &code_check) == 1) {
                             if (code_check == RESP_CHALLENGE_ACCEPTED) {
-                                // Đây là response chính từ ACCEPT_CHALLENGE
-                                char pretty[1024];
-                                beautify_result(recvbuf, pretty, sizeof(pretty));
-                                printf("%s", pretty);
+                                // Đây là response chính từ ACCEPT_CHALLENGE - KHÔNG IN, chỉ đánh dấu đã nhận
                                 response_received = 1;
                             } else if (code_check == RESP_MATCH_STARTED_NOTIFY) {
                                 // 151 MATCH_STARTED - xử lý broadcast
                                 int m_id;
                                 if (sscanf(recvbuf, "%*d MATCH_STARTED %d", &m_id) == 1) {
-                                    printf("\n\n>>> [INFO]  Trận đấu %d bắt đầu.\n", m_id);
-                                
+                                    printf("\n>>> [INFO]  Trận đấu %d bắt đầu.\n", m_id);
                                 }
                                 // Tiếp tục đợi response chính
                             } else if (code_check == RESP_CHEST_DROP_OK) {
                                 // 141 CHEST_DROP - xử lý broadcast
                                 int chest_id, chest_type, pos_x, pos_y;
                                 if (sscanf(recvbuf, "%d %d %d %d %d", &code_check, &chest_id, &chest_type, &pos_x, &pos_y) == 5) {
-                                    printf("\n\n[EVENT]  MỘT RƯƠNG KHO BÁU VỪA RƠI! ID: %d (Tại: %d,%d)\n", chest_id, pos_x, pos_y);
+                                    printf("\n[EVENT]  MỘT RƯƠNG KHO BÁU VỪA RƠI! ID: %d (Tại: %d,%d)\n", chest_id, pos_x, pos_y);
                                 }
                                 // Tiếp tục đợi response chính
                             } else {
-                                // Response không mong đợi, in ra và coi như đã nhận
-                                char pretty[1024];
-                                beautify_result(recvbuf, pretty, sizeof(pretty));
-                                printf("%s", pretty);
+                                // Response không mong đợi - không in, chỉ đánh dấu đã nhận
                                 response_received = 1;
                             }
                         } else {
@@ -1335,234 +1279,252 @@ int main(int argc, char *argv[]) {
                 break;
             }
             
-            case FUNC_BATTLE_SCREEN: { /* Battle Screen UI */
+           case FUNC_BATTLE_SCREEN: { 
 #ifdef USE_NCURSES
                 char my_username[128] = "";
-                // Lấy username hiện tại
                 if (send_line(sock, "WHOAMI") >= 0 && recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
-                    int code;
-                    sscanf(recvbuf, "%d %127s", &code, my_username);
+                    int code; sscanf(recvbuf, "%d %127s", &code, my_username);
                 }
                 
-                // Nhập Match ID
-                printf("Enter Match ID (or press Enter to auto-detect): ");
-                fflush(stdout);
-                char match_id_str[64] = "";
-                safeInput(match_id_str, sizeof(match_id_str));
+                printf("Enter Match ID (or press Enter to auto-detect): "); fflush(stdout);
+                char match_id_str[64] = ""; safeInput(match_id_str, sizeof(match_id_str));
                 
                 int match_id = -1;
                 if (strlen(match_id_str) > 0) {
                     match_id = atoi(match_id_str);
-                    if (match_id <= 0) {
-                        printf("Invalid match ID.\n");
-                        break;
-                    }
-                } else {
-                    printf("Please enter Match ID.\n");
-                    break;
-                }
-                
-                // Vòng lặp màn hình chiến đấu
+                    if (match_id <= 0) { printf("Invalid match ID.\n"); break; }
+                } else { printf("Please enter Match ID.\n"); break; }
+
                 while (1) {
                     snprintf(cmd, sizeof(cmd), "MATCH_INFO %d", match_id);
                     if (send_line(sock, cmd) < 0) break;
                     if (recv_line(sock, recvbuf, sizeof(recvbuf)) <= 0) break;
                     
-                    int code = 0;
-                    char *data_start = strchr(recvbuf, ' ');
-                    if (!data_start || sscanf(recvbuf, "%d", &code) != 1 || code != RESP_MATCH_INFO_OK) {
-                        char pretty[1024];
-                        beautify_result(recvbuf, pretty, sizeof(pretty));
-                        printf("%s", pretty);
-                        break;
+                    int code = 0; sscanf(recvbuf, "%d", &code);
+                    
+                    // --- XỬ LÝ BROADCAST XEN NGANG ---
+                    if (code == RESP_CHEST_DROP_OK) { // 141
+                        int cid; sscanf(recvbuf, "%*d %d", &cid); current_chest_id = cid; continue;
+                    } else if (code == RESP_CHEST_BROADCAST) { // 210
+                        current_chest_id = -1; continue;
+                    } else if (code == RESP_FIRE_OK) { // 200
+                        continue; 
+                    } else if (code != RESP_MATCH_INFO_OK) {
+                        char p[1024]; beautify_result(recvbuf, p, sizeof(p)); printf("%s", p); break;
                     }
-                    data_start++; 
-                    
-                    // Chuyển ký tự | thành xuống dòng để dễ parse
-                    char match_info_buf[4096];
-                    strncpy(match_info_buf, data_start, sizeof(match_info_buf) - 1);
-                    match_info_buf[sizeof(match_info_buf) - 1] = '\0';
-                    for (int i = 0; match_info_buf[i] != '\0'; i++) {
-                        if (match_info_buf[i] == '|') match_info_buf[i] = '\n';
-                    }
-                    
-                    // --- KHAI BÁO DỮ LIỆU ---
-                    // Dùng mảng riêng để quản lý cấp phát bộ nhớ
-                    char *team_left_names[3] = {NULL, NULL, NULL};
-                    char *team_right_names[3] = {NULL, NULL, NULL};
-                    
-                    // Dùng mảng const char* để truyền vào hàm UI
-                    const char *team_left[3] = {NULL, NULL, NULL};
-                    const char *team_right[3] = {NULL, NULL, NULL};
-                    
-                    int team_left_hp_vals[3] = {0};
-                    int team_right_hp_vals[3] = {0};
 
-                    int left_count = 0;
-                    int right_count = 0;
-                    int my_hp = 0;
-                    int my_team_id = -1;
-                    int team1_id = -1, team2_id = -1;
-                    int in_team1 = 0, in_team2 = 0;
+                    // --- PARSE DỮ LIỆU (VIẾT LẠI CHẶT CHẼ HƠN) ---
+                    char *ptr = strchr(recvbuf, ' '); 
+                    if (!ptr) continue; ptr++;
                     
-                    char current_player[128] = "";
-                    int current_player_hp = 0;
+                    char buf[8192]; 
+                    strncpy(buf, ptr, sizeof(buf)-1); buf[sizeof(buf)-1]='\0';
                     
-                    // --- PARSE DỮ LIỆU ---
-                    char *line = match_info_buf;
-                    while (*line != '\0') {
-                        char *line_end = line;
-                        while (*line_end != '\0' && *line_end != '\n') line_end++;
-                        char saved_char = *line_end;
-                        *line_end = '\0'; // Cắt chuỗi tạm thời
+                    // Reset dữ liệu
+                    char *tL_names[3]={0}; char *tR_names[3]={0};
+                    const char *tL[3]={0}; const char *tR[3]={0};
+                    int hpL[3]={0}, hpR[3]={0};
+                    int cntL=0, cntR=0, my_hp=0, team1=-1, team2=-1;
+                    int current_parsing_team = 0; // 1 or 2
+
+                    // Dùng strtok để cắt theo ký tự '|' (Server gửi ngăn cách bằng |)
+                    char *token = strtok(buf, "|");
+                    while (token != NULL) {
+                        // Trim space đầu đuôi token nếu cần (đơn giản hóa ở đây)
+                        while (*token == ' ') token++; // Bỏ space đầu
                         
-                        if (strstr(line, "TEAM 1:") != NULL) {
-                             char *id_start = strstr(line, "(ID: ");
-                             if (id_start) sscanf(id_start, "(ID: %d)", &team1_id);
-                             in_team1 = 1; in_team2 = 0; left_count = 0;
-                             current_player[0] = '\0';
-                        } else if (strstr(line, "TEAM 2:") != NULL) {
-                             char *id_start = strstr(line, "(ID: ");
-                             if (id_start) sscanf(id_start, "(ID: %d)", &team2_id);
-                             in_team2 = 1; in_team1 = 0; right_count = 0;
-                             current_player[0] = '\0';
-                        } else if (strstr(line, "Player:") != NULL) {
-                            if (sscanf(line, "  Player: %127s", current_player) == 1) {
-                                // Xử lý khoảng trắng thừa nếu có
-                                int len = strlen(current_player);
-                                while(len > 0 && (current_player[len-1] == ' ' || current_player[len-1] == '\t')) 
-                                    current_player[--len]='\0';
-                            }
-                        } else if (strstr(line, "HP:") != NULL && current_player[0] != '\0') {
-                            char *hp_pos = strstr(line, "HP:");
-                            if (hp_pos && sscanf(hp_pos, "HP: %d", &current_player_hp) == 1) {
+                        if (strstr(token, "TEAM 1:")) {
+                            sscanf(strstr(token, "ID: ")+4, "%d", &team1);
+                            current_parsing_team = 1;
+                        } else if (strstr(token, "TEAM 2:")) {
+                            sscanf(strstr(token, "ID: ")+4, "%d", &team2);
+                            current_parsing_team = 2;
+                        } else if (strstr(token, "Player:")) {
+                            char pName[128]; int pHP=0;
+                            // Format: Player: abc | HP: 100 ...
+                            // Do strtok đã cắt '|', token hiện tại là "Player: abc"
+                            // Token TIẾP THEO sẽ là "HP: 100"
+                            sscanf(token, "Player: %s", pName);
+                            
+                            // Lấy token tiếp theo luôn cho HP
+                            char *hp_token = strtok(NULL, "|");
+                            if (hp_token && strstr(hp_token, "HP:")) {
+                                sscanf(strstr(hp_token, "HP:")+3, "%d", &pHP);
                                 
-                                if (strcmp(current_player, my_username) == 0) {
-                                    my_hp = current_player_hp;
-                                    my_team_id = in_team1 ? team1_id : (in_team2 ? team2_id : -1);
-                                }
+                                // Lưu dữ liệu
+                                char *n = malloc(strlen(pName)+1); strcpy(n, pName);
+                                if (current_parsing_team == 1 && cntL < 3) {
+                                    tL_names[cntL] = n; tL[cntL] = n; hpL[cntL] = pHP; cntL++;
+                                } else if (current_parsing_team == 2 && cntR < 3) {
+                                    tR_names[cntR] = n; tR[cntR] = n; hpR[cntR] = pHP; cntR++;
+                                } else { free(n); }
                                 
-                                // Cấp phát bộ nhớ an toàn thay cho strdup
-                                char *name_copy = malloc(strlen(current_player) + 1);
-                                if (name_copy) strcpy(name_copy, current_player);
-                                
-                                if (name_copy) {
-                                    if (in_team1 && left_count < 3) {
-                                        team_left_names[left_count] = name_copy;
-                                        team_left[left_count] = name_copy; // Gán vào mảng const
-                                        team_left_hp_vals[left_count] = current_player_hp;
-                                        left_count++;
-                                    } else if (in_team2 && right_count < 3) {
-                                        team_right_names[right_count] = name_copy;
-                                        team_right[right_count] = name_copy; // Gán vào mảng const
-                                        team_right_hp_vals[right_count] = current_player_hp;
-                                        right_count++;
-                                    } else {
-                                        free(name_copy);
-                                    }
-                                }
-                                current_player[0] = '\0'; 
+                                if (strcmp(pName, my_username)==0) my_hp = pHP;
                             }
                         }
-                        
-                        *line_end = saved_char; // Trả lại ký tự cũ
-                        if (*line_end == '\n') line = line_end + 1; else break;
+                        token = strtok(NULL, "|");
+                    }
+
+                    // Determine Friend/Enemy (Giả định mình ở Team 1 nếu chưa xác định)
+                    // Cần logic check my_team_id, ở đây tạm thời:
+                    // Nếu user có trong list Team 2 -> Team 2 là Friendly
+                    int am_i_team2 = 0;
+                    for(int i=0; i<cntR; i++) if(strcmp(tR[i], my_username)==0) am_i_team2=1;
+
+                    const char **frTeam, **enTeam;
+                    int *frHP, *enHP; 
+                    int frCnt, enCnt;
+
+                    if (am_i_team2) {
+                        frTeam=tR; frHP=hpR; frCnt=cntR;
+                        enTeam=tL; enHP=hpL; enCnt=cntL;
+                    } else { // Team 1 or Spectator
+                        frTeam=tL; frHP=hpL; frCnt=cntL;
+                        enTeam=tR; enHP=hpR; enCnt=cntR;
                     }
                     
-                    // --- XÁC ĐỊNH PHE TA / PHE ĐỊCH ---
-                    const char **friendly_team = NULL;
-                    const char **enemy_team = NULL;
-                    int *friendly_hp = NULL;
-                    int *enemy_hp = NULL;
-                    int friendly_count = 0;
-                    int enemy_count = 0;
-                    
-                    int setup_ok = 0;
-                    if (my_team_id == team1_id && my_team_id > 0) {
-                        friendly_team = team_left; friendly_hp = team_left_hp_vals; friendly_count = left_count;
-                        enemy_team = team_right;   enemy_hp = team_right_hp_vals;   enemy_count = right_count;
-                        setup_ok = 1;
-                    } else if (my_team_id == team2_id && my_team_id > 0) {
-                        friendly_team = team_right; friendly_hp = team_right_hp_vals; friendly_count = right_count;
-                        enemy_team = team_left;     enemy_hp = team_left_hp_vals;     enemy_count = left_count;
-                        setup_ok = 1;
-                    } 
-                    
-                    if (!setup_ok) {
-                        printf("Error: Could not determine your team (You might be kicked or match ended).\n");
-                        // Cleanup
-                        for (int i = 0; i < 3; i++) { if(team_left_names[i]) free(team_left_names[i]); if(team_right_names[i]) free(team_right_names[i]); }
-                        break;
-                    }
-                    
-                    // --- GỌI UI ---
-                    char target_username[128] = "";
-                    int weapon_id = 0;
-                    int battle_result = battle_screen_ncurses(
-                        my_username,
-                        friendly_team, friendly_hp, friendly_count,
-                        enemy_team, enemy_hp, enemy_count,
-                        my_hp,
-                        target_username, sizeof(target_username),
-                        &weapon_id
+                    char target[128]=""; int wid=0;
+                    int res = battle_screen_ncurses(
+                        my_username, 
+                        frTeam, frHP, frCnt, 
+                        enTeam, enHP, enCnt, 
+                        my_hp, current_chest_id, 
+                        target, sizeof(target), &wid
                     );
                     
-                    // --- GIẢI PHÓNG BỘ NHỚ ---
-                    for (int i = 0; i < 3; i++) { 
-                        if(team_left_names[i]) free(team_left_names[i]); 
-                        if(team_right_names[i]) free(team_right_names[i]); 
-                    }
-                    
-                    // --- XỬ LÝ KẾT QUẢ ---
-                    if (battle_result == 1) { // FIRE
-                         if (strlen(target_username) > 0) {
-                             snprintf(cmd, sizeof(cmd), "FIRE %s %d", target_username, weapon_id);
-                             if (send_line(sock, cmd) < 0) break;
-                             if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
-                                 char pretty[1024];
-                                 beautify_result(recvbuf, pretty, sizeof(pretty));
-                                 show_message_ncurses("FIRE Result", pretty);
-                             }
-                         }
-                         continue;
-                    } else if (battle_result == 0) { // SHOP
-                         int shop_sel = shop_menu_ncurses();
-                         if (shop_sel == 0) { // Armor
-                            send_line(sock, "GETCOIN"); recv_line(sock, recvbuf, sizeof(recvbuf));
-                            int coin = 0; sscanf(recvbuf, "%*d %d", &coin);
+                    // Cleanup
+                    for(int i=0; i<3; i++) { if(tL_names[i]) free(tL_names[i]); if(tR_names[i]) free(tR_names[i]); }
+
+                    if (res == 0) { // SHOP
+                        int shop_sel = shop_menu_ncurses();
+                        if (shop_sel == -1) {
+                            continue; // Quay lại battle screen
+                        }
+                        if (shop_sel == 0) {
+                            // Buy Armor flow
+                            int coin = -1;
+                            if (send_line(sock, "GETCOIN") >= 0 && recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                                int code_tmp = 0;
+                                int coin_tmp = -1;
+                                if (sscanf(recvbuf, "%d %d", &code_tmp, &coin_tmp) == 2) {
+                                    coin = coin_tmp;
+                                }
+                            }
                             int armor_sel = shop_armor_menu_ncurses(coin);
-                            if (armor_sel != -1) {
-                                snprintf(cmd, sizeof(cmd), "BUYARMOR %d", armor_sel + 1);
-                                send_line(sock, cmd);
-                                recv_line(sock, recvbuf, sizeof(recvbuf));
-                                char pretty[1024]; beautify_result(recvbuf, pretty, sizeof(pretty));
-                                show_message_ncurses("Purchase Result", pretty);
+                            if (armor_sel == -1) continue; // cancelled, quay lại battle screen
+                            int armor_type = (armor_sel == 0) ? 1 : 2; // 1 BASIC, 2 ENHANCED
+                            snprintf(cmd, sizeof(cmd), "BUYARMOR %d", armor_type);
+                            if (send_line(sock, cmd) < 0) break;
+                            if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                                char p[1024]; beautify_result(recvbuf, p, sizeof(p));
+                                show_message_ncurses("BUY ARMOR", p);
                             }
-                         } else if (shop_sel == 1) { // Weapon
-                            send_line(sock, "GETCOIN"); recv_line(sock, recvbuf, sizeof(recvbuf));
-                            int coin = 0; sscanf(recvbuf, "%*d %d", &coin);
-                            int wp_sel = shop_weapon_menu_ncurses(coin);
-                            if (wp_sel != -1) {
-                                snprintf(cmd, sizeof(cmd), "BUY_WEAPON %d", wp_sel);
-                                send_line(sock, cmd);
-                                recv_line(sock, recvbuf, sizeof(recvbuf));
-                                char pretty[1024]; beautify_result(recvbuf, pretty, sizeof(pretty));
-                                show_message_ncurses("Purchase Result", pretty);
+                        } else if (shop_sel == 1) {
+                            // Buy Weapon flow
+                            int coin = -1;
+                            if (send_line(sock, "GETCOIN") >= 0 && recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                                int code_tmp = 0;
+                                int coin_tmp = -1;
+                                if (sscanf(recvbuf, "%d %d", &code_tmp, &coin_tmp) == 2) {
+                                    coin = coin_tmp;
+                                }
                             }
-                         }
-                         continue;
-                    } else { // ESC / Back
-                        break;
-                    }
+                            int weapon_sel = shop_weapon_menu_ncurses(coin);
+                            if (weapon_sel == -1) continue; // cancelled, quay lại battle screen
+                            int weapon_type = weapon_sel; // 0=CANNON, 1=LASER, 2=MISSILE
+                            snprintf(cmd, sizeof(cmd), "BUY_WEAPON %d", weapon_type);
+                            if (send_line(sock, cmd) < 0) break;
+                            if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                                char p[1024]; beautify_result(recvbuf, p, sizeof(p));
+                                show_message_ncurses("BUY WEAPON", p);
+                            }
+                        }
+                    } else if (res == 1) { // FIRE
+                        snprintf(cmd, sizeof(cmd), "FIRE %s %d", target, wid); send_line(sock, cmd);
+                        if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                            char p[1024]; beautify_result(recvbuf, p, sizeof(p)); show_message_ncurses("FIRE", p);
+                        }
+                    } else if (res == 2) { // OPEN CHEST
+                        snprintf(cmd, sizeof(cmd), "CHEST_OPEN %d", current_chest_id); send_line(sock, cmd);
+                        if (recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                            int qc; char q[256];
+                            if (sscanf(recvbuf, "%d %[^\n]", &qc, q) == 2 && qc == 211) {
+                                char ans[128];
+                                if (popup_input_ncurses("OPEN CHEST", q, ans, sizeof(ans))) {
+                                    snprintf(cmd, sizeof(cmd), "CHEST_OPEN %d %s", current_chest_id, ans);
+                                    send_line(sock, cmd);
+                                    
+                                    // Vòng lặp chờ kết quả mở rương
+                                    int coin_before = -1;
+                                    // Lấy coin trước khi mở rương
+                                    if (send_line(sock, "GETCOIN") >= 0 && recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                                        int code_tmp = 0;
+                                        if (sscanf(recvbuf, "%d %d", &code_tmp, &coin_before) != 2) {
+                                            coin_before = -1;
+                                        }
+                                    }
+                                    
+                                    while(1) {
+                                        if (recv_line(sock, recvbuf, sizeof(recvbuf)) <= 0) break;
+                                        int rc; sscanf(recvbuf, "%d", &rc);
+                                        
+                                        if (rc == RESP_CHEST_OPEN_OK) { // 145 Success
+                                            // Lấy coin sau khi mở rương
+                                            int coin_after = -1;
+                                            if (send_line(sock, "GETCOIN") >= 0 && recv_line(sock, recvbuf, sizeof(recvbuf)) > 0) {
+                                                int code_tmp = 0;
+                                                if (sscanf(recvbuf, "%d %d", &code_tmp, &coin_after) != 2) {
+                                                    coin_after = -1;
+                                                }
+                                            }
+                                            
+                                            char msg[256];
+                                            if (coin_before >= 0 && coin_after >= 0) {
+                                                int coin_gained = coin_after - coin_before;
+                                                snprintf(msg, sizeof(msg), "You opened the chest!\n+%d coins (Total: %d)", coin_gained, coin_after);
+                                            } else {
+                                                snprintf(msg, sizeof(msg), "You opened the chest!");
+                                            }
+                                            // Hiển thị message thành công
+                                            show_message_ncurses("SUCCESS", msg);
+                                            current_chest_id = -1; 
+                                            break; // Break khỏi vòng lặp chờ response
+                                        } 
+                                        else if (rc == RESP_CHEST_BROADCAST) { // 210 Broadcast
+                                            // 210 đến nghĩa là rương đã mất (do mình hoặc người khác).
+                                            // Nếu mình mở đúng, 145 sẽ đến. Nếu chỉ nhận 210 mà không có 145, nghĩa là người khác mở hoặc chỉ là thông báo.
+                                            // Logic ở đây: nhận 210 coi như xong việc, thoát vòng lặp.
+                                            // Để tránh in "FAILED", ta coi như thông tin rương đã cập nhật.
+                                            current_chest_id = -1; 
+                                            // Không break ngay, đợi xem có 145 không? 
+                                            // Thực tế server gửi 145 cho người mở và 210 cho tất cả.
+                                            // Nếu ta là người mở, ta sẽ nhận cả hai.
+                                            // Nên ta cứ continue đợi 145.
+                                            continue; 
+                                        } 
+                                        else if (rc == RESP_WRONG_ANSWER || rc == RESP_CHEST_OPEN_FAIL) {
+                                            char p[1024]; beautify_result(recvbuf, p, sizeof(p));
+                                            show_message_ncurses("FAILED", p); 
+                                            break; // Break khỏi vòng lặp chờ response
+                                        }
+                                    }
+                                    // Sau khi xử lý xong mở rương (thành công hoặc thất bại), quay lại battle screen
+                                    continue;
+                                } else {
+                                    // Người dùng cancel popup, quay lại battle screen
+                                    continue;
+                                }
+                            } else { 
+                                show_message_ncurses("ERROR", "Cannot get question."); 
+                                continue; // Quay lại battle screen
+                            }
+                        } else {
+                            // Không nhận được response từ server, có thể là lỗi kết nối
+                            break; // Thoát khỏi vòng lặp battle screen
+                        }
+                    } else if (res == -1) break;
                 }
-#else
-                printf("Battle screen is only available with ncurses.\n");
 #endif
-                break;
-            }
-            
-            default: {
-                printf("Invalid choice, please try again.\n");
                 break;
             }
         }

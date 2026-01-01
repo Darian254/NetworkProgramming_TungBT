@@ -81,25 +81,36 @@ int shop_armor_menu_ncurses(int coin);
 int shop_weapon_menu_ncurses(int coin);
 
 /**
- * @brief Battle screen: show 6 ships (3 per team), HP and Shop option.
- * Renders two sides and allows selecting an enemy ship to attack.
- * After selecting target, prompts for weapon (cannon/laser/missile).
- *
- * @param my_username Current player's username (for highlighting)
- * @param team_left Array of friendly usernames (size left_count)
- * @param left_count Number of friendly ships (expected 3)
- * @param team_right Array of enemy usernames (size right_count)
- * @param right_count Number of enemy ships (expected 3)
- * @param my_hp Current player's ship HP for display
- * @param out_target_username Output: selected enemy username (buffer provided by caller)
+ * @brief Show a popup dialog to get user input (for answering chest questions)
+ * @param title Title of the popup
+ * @param question The question text to display
+ * @param buffer Output buffer for the answer
+ * @param size Size of the buffer
+ * @return 1 if submitted, 0 if cancelled
+ */
+int popup_input_ncurses(const char *title, const char *question, char *buffer, size_t size);
+
+/**
+ * @brief Battle screen: show 6 ships, HP, Shop, and Treasure Chest.
+ * * @param my_username Current player's username
+ * @param team_left Array of friendly usernames
+ * @param team_left_hp Array of friendly HP values
+ * @param left_count Number of friendly ships
+ * @param team_right Array of enemy usernames
+ * @param team_right_hp Array of enemy HP values
+ * @param right_count Number of enemy ships
+ * @param my_hp Current player's ship HP
+ * @param active_chest_id ID of the active chest (-1 if none)
+ * @param out_target_username Output: selected enemy username
  * @param out_target_username_size Size of output buffer
  * @param out_weapon_id Output: 0=cannon, 1=laser, 2=missile
- * @return 1 if FIRE selected, 0 if Shop requested, -1 if cancelled
+ * @return 1=FIRE, 0=SHOP, 2=OPEN_CHEST, -1=CANCEL
  */
- int battle_screen_ncurses(const char *my_username,
+int battle_screen_ncurses(const char *my_username,
     const char **team_left, int *team_left_hp, int left_count,
     const char **team_right, int *team_right_hp, int right_count,
     int my_hp,
+    int active_chest_id, 
     char *out_target_username, size_t out_target_username_size,
     int *out_weapon_id);
 #endif

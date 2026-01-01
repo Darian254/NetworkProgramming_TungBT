@@ -362,6 +362,7 @@ void show_message_ncurses(const char *title, const char *message) {
     endwin();
 }
 
+
 int display_menu_ncurses(void) {
     initscr();
     cbreak();
@@ -842,7 +843,46 @@ int shop_weapon_menu_ncurses(int coin) {
     endwin();
     return result;
 }
+// --- Hàm mới: Hiển thị popup nhập câu trả lời ---
+int popup_input_ncurses(const char *title, const char *question, char *buffer, size_t size) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(1);
+    erase();
+    refresh();
+    
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+    int win_h = 14; int win_w = 70; // Tăng chiều cao để chứa câu hỏi dài
+    WINDOW *win = newwin(win_h, win_w, (max_y - win_h)/2, (max_x - win_w)/2);
+    keypad(win, TRUE); box(win, 0, 0);
+    
+    mvwprintw(win, 1, (win_w - strlen(title))/2, "%s", title);
+    
+    // In câu hỏi (tự động xuống dòng nếu dài)
+    int q_len = strlen(question);
+    int line_width = win_w - 4;
+    int q_lines = (q_len / line_width) + 1;
+    for (int i = 0; i < q_lines; i++) {
+        mvwprintw(win, 3 + i, 2, "%.*s", line_width, question + (i * line_width));
+    }
 
+    mvwprintw(win, 3 + q_lines + 1, 2, "Answer: ");
+    mvwprintw(win, win_h - 2, (win_w - 30)/2, "Enter: Submit | ESC: Cancel");
+    wrefresh(win);
+    
+    curs_set(1); echo();
+    wmove(win, 3 + q_lines + 1, 10);
+    int ch = wgetnstr(win, buffer, size - 1);
+    noecho(); curs_set(0);
+    delwin(win); clear(); refresh();
+    endwin();
+    
+    if (ch == ERR) return 0;
+    return (strlen(buffer) > 0);
+}
 // =====================
 // Battle Screen (6 ships)
 // =====================
@@ -850,200 +890,131 @@ int battle_screen_ncurses(const char *my_username,
     const char **team_left, int *team_left_hp, int left_count,
     const char **team_right, int *team_right_hp, int right_count,
     int my_hp,
+    int active_chest_id,
     char *out_target_username, size_t out_target_username_size,
     int *out_weapon_id) {
     
-    initscr();
-    cbreak();
-    noecho();
-    keypad(stdscr, TRUE);
-    curs_set(0);
-    erase();
-    refresh();
+    initscr(); cbreak(); noecho(); keypad(stdscr, TRUE); curs_set(0);
+    erase(); refresh();
 
-    int max_y, max_x;
-    getmaxyx(stdscr, max_y, max_x);
-
-    
-    // Cần ít nhất: 4 (header) + 15 (3 tàu x 5 dòng) + 3 (footer) = ~22 dòng
-    int needed_h = 24; 
-    int win_h = (max_y > needed_h) ? needed_h : max_y - 1;
+    int max_y, max_x; getmaxyx(stdscr, max_y, max_x);
+    int win_h = (max_y > 24) ? 24 : max_y - 1;
     int win_w = (max_x > 80) ? 80 : max_x - 1;
     
-    // Bảo vệ: Nếu màn hình terminal quá bé thật sự
-    if (win_h < 22 || win_w < 40) {
-        endwin();
-        printf("Terminal window too small! Please resize (Need > 24 lines).\n");
-        return -1;
+    if (win_h < 22 || win_w < 60) {
+        endwin(); printf("Terminal too small! Resize needed.\n"); return -1;
     }
 
-    int start_y = (max_y - win_h) / 2;
-    int start_x = (max_x - win_w) / 2;
+    WINDOW *win = newwin(win_h, win_w, (max_y - win_h)/2, (max_x - win_w)/2);
+    keypad(win, TRUE); box(win, 0, 0);
 
-    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
-    if (!win) { endwin(); return -1; }
-
-    keypad(win, TRUE);
-    box(win, 0, 0);
-
-    // --- Header ---
+    // Header
     mvwprintw(win, 1, 2, "[S] Shop");
-    char hp_str[32];
-    snprintf(hp_str, sizeof(hp_str), "My HP: %d", my_hp);
-    int hp_x = win_w - 2 - (int)strlen(hp_str);
-    if (hp_x < 2) hp_x = 2;
-    
-    // In HP user và Tiêu đề
-    mvwprintw(win, 1, hp_x, "%s", hp_str);
-    mvwprintw(win, 1, (win_w - 12) / 2, "BATTLE FIELD"); 
+    mvwprintw(win, 1, win_w - 20, "My HP: %d", my_hp);
+    mvwprintw(win, 1, (win_w - 12)/2, "BATTLE FIELD"); 
 
-    int col_left_x = 4;
-    int col_right_x = win_w - 24;
-    
+    int col_left = 4, col_right = win_w - 24, row_top = 4;
+    mvwprintw(win, 2, col_left, "TEAM A"); mvwprintw(win, 2, col_right, "TEAM B");
 
-    int row_top = 4; 
-    
-    // In tên đội ngay dòng 2 (để tiết kiệm chỗ)
-    mvwprintw(win, 2, col_left_x,   "TEAM A (Friendly)");
-    mvwprintw(win, 2, col_right_x,  "TEAM B (Enemy)");
+    // Vẽ Rương (Ở giữa)
+    if (active_chest_id > 0) {
+        wattron(win, A_BOLD | A_REVERSE);
+        mvwprintw(win, win_h/2, win_w/2 - 2, "[ $ ]"); 
+        wattroff(win, A_BOLD | A_REVERSE);
+        mvwprintw(win, win_h/2 + 1, win_w/2 - 4, "Press 'C'");
+    }
 
-    // --- VẼ ĐỘI MÌNH (LEFT) ---
+    // Vẽ Đội Trái (Team A)
     for (int i = 0; i < 3; i++) {
         int y = row_top + i * 5;
+        int has_p = (i < left_count && team_left[i]);
+        int dead = (has_p && team_left_hp[i] <= 0);
+        if (dead) wattron(win, A_DIM);
         
-        int is_dead = (i < left_count && team_left_hp[i] <= 0);
-        if (is_dead) wattron(win, A_DIM);
-
-        // Vẽ hộp tàu 
-        // Dòng trên
-        for (int dx = 0; dx < 16; dx++) mvwaddch(win, y, col_left_x + dx, '-');
-        // Dòng dưới
-        for (int dx = 0; dx < 16; dx++) mvwaddch(win, y + 3, col_left_x + dx, '-');
+        // Vẽ khung
+        mvwhline(win, y, col_left, '-', 16);
+        mvwhline(win, y+3, col_left, '-', 16);
+        mvwvline(win, y+1, col_left, '|', 2);
+        mvwvline(win, y+1, col_left+15, '|', 2);
         
-        // Các cạnh bên
-        mvwaddch(win, y + 1, col_left_x, '|');
-        mvwaddch(win, y + 2, col_left_x, '|');
-        mvwaddch(win, y + 1, col_left_x + 15, '|');
-        mvwaddch(win, y + 2, col_left_x + 15, '|');
-        
-        // Nội dung bên trong
-        if (i < left_count && team_left[i]) {
-            mvwprintw(win, y + 1, col_left_x + 2, "%.*s", 12, team_left[i]);
-            
-            char hp_txt[16];
-            snprintf(hp_txt, sizeof(hp_txt), "%d", team_left_hp[i]);
-            mvwprintw(win, y + 2, col_left_x + 8, "HP:%s", hp_txt);
-
-            if (my_username && strcmp(my_username, team_left[i]) == 0) {
-                mvwprintw(win, y + 2, col_left_x + 2, "(You)");
-            }
-            if (is_dead) mvwprintw(win, y + 1, col_left_x + 2, "X_X");
-        } else {
-            mvwprintw(win, y + 1, col_left_x + 2, "[Empty]");
-            mvwprintw(win, y + 2, col_left_x + 2, "       ");
-        }
-        
-        if (is_dead) wattroff(win, A_DIM);
+        if (has_p) {
+            mvwprintw(win, y+1, col_left+2, "%.*s", 12, team_left[i]);
+            mvwprintw(win, y+2, col_left+2, "HP:%d", team_left_hp[i]);
+            if (my_username && strcmp(my_username, team_left[i]) == 0) 
+                mvwprintw(win, y+2, col_left+10, "(Me)");
+            if (dead) mvwprintw(win, y+1, col_left+13, "XX");
+        } else mvwprintw(win, y+1, col_left+2, "[Empty]");
+        if (dead) wattroff(win, A_DIM);
     }
 
-    // Chọn mục tiêu đầu tiên còn sống
-    int selected_enemy = -1;
-    if (right_count > 0) {
-        for(int k=0; k<right_count; k++) {
-            if(team_right[k] && team_right_hp[k] > 0) {
-                selected_enemy = k;
-                break;
-            }
-        }
-        if (selected_enemy == -1) selected_enemy = 0;
-    } else {
-        selected_enemy = 0;
-    }
+    // Logic chọn mục tiêu
+    // Giữ vị trí chọn cũ nếu có thể
+    static int sel = 0;
+    // Đảm bảo sel nằm trong phạm vi hiển thị (0-2)
+    if (sel > 2) sel = 0;
 
-    // --- VÒNG LẶP UI ---
     while (1) {
-        // --- VẼ ĐỘI ĐỊCH (RIGHT) ---
+        // Vẽ Đội Phải (Team B - Enemy)
         for (int i = 0; i < 3; i++) {
             int y = row_top + i * 5;
-            int is_dead = (i < right_count && team_right_hp[i] <= 0);
+            int has_p = (i < right_count && team_right[i]);
+            int dead = (has_p && team_right_hp[i] <= 0);
             
-            // Highlight
-            if (i == selected_enemy && !is_dead && i < right_count && team_right[i]) {
-                wattron(win, A_REVERSE); 
-            }
-            if (is_dead) wattron(win, A_DIM);
-
-            // Vẽ hộp
-            for (int dx = 0; dx < 16; dx++) mvwaddch(win, y, col_right_x + dx, '-');
-            for (int dx = 0; dx < 16; dx++) mvwaddch(win, y + 3, col_right_x + dx, '-');
+            // Highlight dòng đang chọn (kể cả đã chết hoặc empty, để biết đang trỏ vào đâu)
+            if (i == sel) wattron(win, A_REVERSE);
             
-            mvwaddch(win, y + 1, col_right_x, '|');
-            mvwaddch(win, y + 2, col_right_x, '|');
-            mvwaddch(win, y + 1, col_right_x + 15, '|');
-            mvwaddch(win, y + 2, col_right_x + 15, '|');
-
-            if (i < right_count && team_right[i]) {
-                mvwprintw(win, y + 1, col_right_x + 2, "%.*s", 12, team_right[i]);
-                char hp_txt[16];
-                snprintf(hp_txt, sizeof(hp_txt), "%d", team_right_hp[i]);
-                mvwprintw(win, y + 2, col_right_x + 8, "HP:%s", hp_txt);
-                
-                if (is_dead) mvwprintw(win, y + 1, col_right_x + 2, "X_X");
+            // Vẽ khung
+            mvwhline(win, y, col_right, '-', 16);
+            mvwhline(win, y+3, col_right, '-', 16);
+            mvwvline(win, y+1, col_right, '|', 2);
+            mvwvline(win, y+1, col_right+15, '|', 2);
+            
+            if (has_p) {
+                // Nếu chết thì làm mờ chữ bên trong (nhưng khung vẫn highlight nếu đang chọn)
+                if (dead) wattron(win, A_DIM);
+                mvwprintw(win, y+1, col_right+2, "%.*s", 12, team_right[i]);
+                mvwprintw(win, y+2, col_right+2, "HP:%d", team_right_hp[i]);
+                if (dead) {
+                    mvwprintw(win, y+1, col_right+13, "XX");
+                    wattroff(win, A_DIM); // Tắt làm mờ
+                }
             } else {
-                mvwprintw(win, y + 1, col_right_x + 2, "[Empty]");
-                mvwprintw(win, y + 2, col_right_x + 2, "       ");
+                mvwprintw(win, y+1, col_right+2, "[Empty]");
             }
             
-            if (is_dead) wattroff(win, A_DIM);
-            if (i == selected_enemy && !is_dead && i < right_count && team_right[i]) {
-                wattroff(win, A_REVERSE);
-            }
+            if (i == sel) wattroff(win, A_REVERSE);
         }
 
-       
-        // Vị trí footer  = win_h - 2 (dòng áp chót)
-        mvwprintw(win, win_h - 3, 2, "--------------------------------------------------------");
-        mvwprintw(win, win_h - 2, 2, "Up/Down: Target | Enter/F: FIRE | S: Shop | ESC: Back   ");
-        
+        mvwprintw(win, win_h-2, 2, "Up/Down: Target | Enter: FIRE | S: Shop | C: Chest | ESC");
         wrefresh(win);
 
-        // --- XỬ LÝ PHÍM (Giữ nguyên logic của bạn) ---
         int ch = wgetch(win);
-        if (ch == KEY_UP) { 
-            if (right_count > 0) {
-                int start = selected_enemy;
-                do {
-                    selected_enemy--;
-                    if (selected_enemy < 0) selected_enemy = right_count - 1;
-                } while (selected_enemy != start && 
-                        (selected_enemy >= right_count || !team_right[selected_enemy] || team_right_hp[selected_enemy] <= 0));
-            }
-        } else if (ch == KEY_DOWN) { 
-            if (right_count > 0) {
-                int start = selected_enemy;
-                do {
-                    selected_enemy++;
-                    if (selected_enemy >= right_count) selected_enemy = 0;
-                } while (selected_enemy != start && 
-                        (selected_enemy >= right_count || !team_right[selected_enemy] || team_right_hp[selected_enemy] <= 0));
-            }
-        } else if (ch == 's' || ch == 'S') { 
-            delwin(win); clear(); refresh(); endwin();
-            return 0; // Shop
-        } else if (ch == 27) { // ESC
-            delwin(win); clear(); refresh(); endwin();
-            return -1; // Back
-        } else if (ch == '\n' || ch == KEY_ENTER || ch == 'f' || ch == 'F') { // FIRE
-            if (selected_enemy >= 0 && selected_enemy < right_count && 
-                team_right[selected_enemy] && team_right_hp[selected_enemy] > 0) {
-                
-                if (out_target_username) strcpy(out_target_username, team_right[selected_enemy]);
-                if (out_weapon_id) *out_weapon_id = 0; 
-                
-                delwin(win); clear(); refresh(); endwin();
-                return 1; // FIRE
+        if (ch == KEY_UP) {
+            // Cho phép di chuyển tự do 0->2, không cần check sống chết
+            sel--; if (sel < 0) sel = 2; 
+        } else if (ch == KEY_DOWN) {
+            sel++; if (sel > 2) sel = 0;
+        } else if (ch == 's' || ch == 'S') { delwin(win); endwin(); return 0; }
+        else if (ch == 'c' || ch == 'C') { 
+            if(active_chest_id > 0) { delwin(win); endwin(); return 2; }
+        }
+        else if (ch == 27) { delwin(win); endwin(); return -1; }
+        else if (ch == '\n' || ch == KEY_ENTER || ch == 'f' || ch == 'F') {
+            // Khi bấm FIRE mới kiểm tra hợp lệ
+            if (sel >= 0 && sel < right_count && team_right[sel]) {
+                if (team_right_hp[sel] <= 0) {
+                    mvwprintw(win, win_h-2, 2, "TARGET DEAD! Select another.                  ");
+                    wrefresh(win); napms(500);
+                } else {
+                    if (out_target_username) strcpy(out_target_username, team_right[sel]);
+                    if (out_weapon_id) *out_weapon_id = 0;
+                    delwin(win); endwin(); return 1; // FIRE
+                }
+            } else {
+                mvwprintw(win, win_h-2, 2, "INVALID TARGET! (Empty slot)                  ");
+                wrefresh(win); napms(500);
             }
         }
     }
-    }        
+}
 #endif
