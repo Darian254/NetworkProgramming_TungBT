@@ -162,6 +162,24 @@ int team_accept_join_request_ncurses(const char *requests_data, char *username_o
  * @return 1 if team ID entered, 0 if cancelled
  */
 int team_challenge_ncurses(char *target_team, size_t target_team_size);
+
+/**
+ * @brief Display join requests list and allow approve/reject.
+ * @param requests_data Newline-separated list of usernames
+ * @param username_out Output buffer for selected username
+ * @param username_out_size Size of username_out buffer
+ * @param action_out Output: 0=reject, 1=approve
+ * @return -1=back, 0=no requests, 1=action taken
+ */
+int team_view_join_requests_ncurses(const char *requests_data, char *username_out, size_t username_out_size, int *action_out);
+
+/**
+ * @brief Display kick member input form.
+ * @param username Output buffer for username
+ * @param username_size Size of username buffer
+ * @return 1 if username entered, 0 if cancelled
+ */
+int team_kick_member_ncurses(char *username, size_t username_size);
 #endif
 
 #endif
