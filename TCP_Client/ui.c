@@ -1,9 +1,9 @@
+#define USE_NCURSES
 #include "ui.h"
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include "../TCP_Server/config.h"
 
 void displayMenu() {
@@ -59,13 +59,8 @@ void displayMenu() {
     printf("36. Shop Menu\n");
     printf("37. Buy Weapon\n");
     printf("38. Get Weapon Info\n");
-    printf(" [GAME ACTIONS]\n");
-    printf("39. Fire (Attack)\n");
-    printf("40. Challenge Team (Send Challenge)\n");
-    printf("41. Open Chest\n");
-    printf("42. Accept Challenge\n");
-    printf("43. Decline Challenge\n");
-    printf("44. Battle Screen\n");
+    printf("39. Home Menu (Team Management)\n");
+    printf("40. Team Menu (Detailed Team Management)\n");
     printf("==================================\n");
     printf("Select an option: ");
 }
@@ -362,67 +357,6 @@ void show_message_ncurses(const char *title, const char *message) {
     endwin();
 }
 
-void show_message_in_battle_screen(const char *title, const char *message) {
-    int max_y, max_x;
-    getmaxyx(stdscr, max_y, max_x);
-    
-    int win_h = 8;
-    int win_w = 60;
-    int start_y = (max_y - win_h) / 2;
-    int start_x = (max_x - win_w) / 2;
-    
-    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
-    keypad(win, TRUE);
-    box(win, 0, 0);
-    
-    mvwprintw(win, 1, (win_w - strlen(title)) / 2, "%s", title);
-    
-    // --- KHẮC PHỤC LỖI SEGMENTATION FAULT ---
-    // Nguyên nhân: Hàm strdup có thể gây lỗi trên một số hệ thống nếu không khai báo đúng chuẩn POSIX.
-    // Giải pháp: Thay thế bằng malloc + strcpy thủ công để an toàn tuyệt đối.
-    char *msg_copy = NULL;
-    if (message) {
-        msg_copy = malloc(strlen(message) + 1);
-        if (msg_copy) {
-            strcpy(msg_copy, message);
-        }
-    }
-
-    if (msg_copy) {
-        char *line = strtok(msg_copy, "\n");
-        int y_offset = 0;
-        int msg_y = 3;
-        int msg_x = 2;
-        int max_msg_w = win_w - 4;
-        
-        while (line && y_offset < 3) {
-            mvwprintw(win, msg_y + y_offset, msg_x, "%.*s", max_msg_w, line);
-            line = strtok(NULL, "\n");
-            y_offset++;
-        }
-        free(msg_copy); // Giải phóng bộ nhớ sau khi dùng xong
-    }
-    // ----------------------------------------
-    
-    mvwprintw(win, 6, (win_w - 20) / 2, "Press any key...");
-    
-    wrefresh(win);
-    wgetch(win);
-    
-    delwin(win);
-   
-}
-// Wrapper function để khởi tạo ncurses, hiển thị message, và đóng ncurses
-void show_message_in_battle_screen_with_init(const char *title, const char *message) {
-    initscr();
-    cbreak();
-    noecho();
-    keypad(stdscr, TRUE);
-    show_message_in_battle_screen(title, message);
-    endwin();
-}
-
-
 int display_menu_ncurses(void) {
     initscr();
     cbreak();
@@ -500,9 +434,8 @@ int display_menu_ncurses(void) {
     y++;
     mvwprintw(win, y++, 2, " [SHOP]");
     mvwprintw(win, y++, 2, "36. Shop Menu");
-    mvwprintw(win, y++, 2, "44. Battle Screen");
     
-    mvwprintw(win, win_h - 2, 2, "Enter option number (0-44) or ESC to exit: ");
+    mvwprintw(win, win_h - 2, 2, "Enter option number (0-36) or ESC to exit: ");
     
     wrefresh(win);
     
@@ -524,7 +457,7 @@ int display_menu_ncurses(void) {
             if (pos > 0) {
                 input[pos] = '\0';
                 int choice = atoi(input);
-                if (choice >= 0 && choice <= 39) {
+                if (choice >= 0 && choice <= 36) {
                     result = choice;
                     break;
                 } else {
@@ -543,17 +476,17 @@ int display_menu_ncurses(void) {
                 wmove(win, win_h - 2, input_x + pos);
                 waddch(win, ' ');
                 wmove(win, win_h - 2, input_x + pos);
-                mvwprintw(win, win_h - 1, 2, "                                    ");
+                mvwprintw(win, win_h - 1, 2, "                                        ");
                 wrefresh(win);
             }
-        } else if (ch == 27) {  /* ESC key */
+        } else if (ch == 27) {  
             result = FUNC_EXIT;
             break;
         } else if (isdigit(ch) && pos < 3) {
             input[pos++] = ch;
             input[pos] = '\0';
             waddch(win, ch);
-            mvwprintw(win, win_h - 1, 2, "                                    ");
+            mvwprintw(win, win_h - 1, 2, "                                        ");
             wrefresh(win);
         }
     }
@@ -670,6 +603,7 @@ int login_register_menu_ncurses(void) {
     return result;
 }
 
+// Shop main menu: choose Buy Armor or Buy Weapon
 int shop_menu_ncurses(void) {
     initscr();
     cbreak();
@@ -682,8 +616,8 @@ int shop_menu_ncurses(void) {
     int max_y, max_x;
     getmaxyx(stdscr, max_y, max_x);
 
-    int win_h = 12;
-    int win_w = 60;
+    int win_h = 14;
+    int win_w = 70;
     int start_y = (max_y - win_h) / 2;
     int start_x = (max_x - win_w) / 2;
 
@@ -693,19 +627,19 @@ int shop_menu_ncurses(void) {
 
     mvwprintw(win, 1, (win_w - 9) / 2, "SHOP MENU");
 
-    int selected = 0; // 0 = Buy Armor, 1 = Buy Weapon
+    int selected = 0; // 0 = Buy Armor, 1 = Buy Weapon, 2 = Repair Ship
     int result = -1;
 
     while (1) {
         // Clear area
-        for (int i = 3; i < 8; i++) {
+        for (int i = 3; i < 10; i++) {
             for (int j = 2; j < win_w - 2; j++) {
                 mvwaddch(win, i, j, ' ');
             }
         }
 
         // Buy Armor button (left)
-        int armor_x = 8, armor_y = 5, armor_w = 18, armor_h = 3;
+        int armor_x = 6, armor_y = 5, armor_w = 18, armor_h = 3;
         if (selected == 0) wattron(win, A_REVERSE);
         for (int i = 0; i < armor_h; i++) {
             for (int j = 0; j < armor_w; j++) {
@@ -715,8 +649,8 @@ int shop_menu_ncurses(void) {
         mvwprintw(win, armor_y + 1, armor_x + (armor_w - 10) / 2, "BUY ARMOR");
         if (selected == 0) wattroff(win, A_REVERSE);
 
-        // Buy Weapon button (right)
-        int weapon_x = 34, weapon_y = 5, weapon_w = 18, weapon_h = 3;
+        // Buy Weapon button (middle)
+        int weapon_x = 26, weapon_y = 5, weapon_w = 18, weapon_h = 3;
         if (selected == 1) wattron(win, A_REVERSE);
         for (int i = 0; i < weapon_h; i++) {
             for (int j = 0; j < weapon_w; j++) {
@@ -726,15 +660,29 @@ int shop_menu_ncurses(void) {
         mvwprintw(win, weapon_y + 1, weapon_x + (weapon_w - 11) / 2, "BUY WEAPON");
         if (selected == 1) wattroff(win, A_REVERSE);
 
+        // Repair Ship button (right)
+        int repair_x = 46, repair_y = 5, repair_w = 18, repair_h = 3;
+        if (selected == 2) wattron(win, A_REVERSE);
+        for (int i = 0; i < repair_h; i++) {
+            for (int j = 0; j < repair_w; j++) {
+                mvwaddch(win, repair_y + i, repair_x + j, ' ');
+            }
+        }
+        mvwprintw(win, repair_y + 1, repair_x + (repair_w - 11) / 2, "REPAIR SHIP");
+        if (selected == 2) wattroff(win, A_REVERSE);
+
         // Instructions
-        mvwprintw(win, 9, (win_w - 40) / 2, "Arrow: Select | Enter: Confirm | ESC: Back");
+        mvwprintw(win, 9, 2, "Arrow Keys: Navigate | Enter: Confirm | ESC: Back");
+        mvwprintw(win, 10, 2, "Shortcuts: A = Armor | W = Weapon | R = Repair");
         wrefresh(win);
 
         int ch = wgetch(win);
-        if (ch == KEY_LEFT || ch == KEY_RIGHT) {
-            selected = 1 - selected;
+        if (ch == KEY_LEFT) {
+            if (selected > 0) selected--;
+        } else if (ch == KEY_RIGHT) {
+            if (selected < 2) selected++;
         } else if (ch == '\n' || ch == KEY_ENTER) {
-            result = selected; // 0 = Buy Armor, 1 = Buy Weapon
+            result = selected; // 0 = Buy Armor, 1 = Buy Weapon, 2 = Repair
             break;
         } else if (ch == 27) { // ESC
             result = -1;
@@ -744,6 +692,9 @@ int shop_menu_ncurses(void) {
             break;
         } else if (ch == 'w' || ch == 'W') {
             result = 1;
+            break;
+        } else if (ch == 'r' || ch == 'R') {
+            result = 2;
             break;
         }
     }
@@ -755,6 +706,7 @@ int shop_menu_ncurses(void) {
     return result;
 }
 
+// Armor selection: show types and prices
 int shop_armor_menu_ncurses(int coin) {
     initscr();
     cbreak();
@@ -828,6 +780,7 @@ int shop_armor_menu_ncurses(int coin) {
     return result;
 }
 
+// Weapon selection: show types and prices/details
 int shop_weapon_menu_ncurses(int coin) {
     initscr();
     cbreak();
@@ -900,8 +853,536 @@ int shop_weapon_menu_ncurses(int coin) {
     endwin();
     return result;
 }
-// --- Hàm mới: Hiển thị popup nhập câu trả lời ---
-int popup_input_ncurses(const char *title, const char *question, char *buffer, size_t size) {
+
+// Repair ship: input HP amount to repair
+int shop_repair_menu_ncurses(int current_hp, int max_hp, int coin) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(1);  // Show cursor for input
+    erase();
+    refresh();
+
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+
+    int win_h = 18;
+    int win_w = 70;
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    keypad(win, TRUE);
+    box(win, 0, 0);
+
+    mvwprintw(win, 1, (win_w - 18) / 2, "REPAIR SHIP (SHOP)");
+    
+    // Show coin at upper-right corner
+    char coin_str[32];
+    snprintf(coin_str, sizeof(coin_str), "Coin: %d", coin);
+    int coin_x = win_w - 2 - (int)strlen(coin_str);
+    if (coin_x < 2) coin_x = 2;
+    mvwprintw(win, 1, coin_x, "%s", coin_str);
+
+    // Ship status
+    mvwprintw(win, 3, 2, "=== SHIP STATUS ===");
+    if (current_hp >= 0 && max_hp > 0) {
+        mvwprintw(win, 4, 2, "Current HP: %d / %d", current_hp, max_hp);
+        int missing_hp = max_hp - current_hp;
+        if (missing_hp > 0) {
+            mvwprintw(win, 5, 2, "Missing HP: %d", missing_hp);
+        } else {
+            mvwprintw(win, 5, 2, "Ship is at full health!");
+        }
+    } else {
+        mvwprintw(win, 4, 2, "HP Status: Unknown (fetch HP first)");
+    }
+
+    // Repair cost info
+    mvwprintw(win, 7, 2, "=== REPAIR PRICING ===");
+    mvwprintw(win, 8, 2, "Cost: 5 coin per 1 HP repaired");
+    
+    // Input field
+    mvwprintw(win, 10, 2, "Enter HP amount to repair:");
+    mvwprintw(win, 11, 2, "> ");
+    
+    // Instructions
+    mvwprintw(win, 13, 2, "Tips:");
+    mvwprintw(win, 14, 2, "- Max repair limited by coin and missing HP");
+    mvwprintw(win, 15, 2, "- Press Enter to confirm, ESC to cancel");
+    
+    wrefresh(win);
+
+    // Get input
+    char input[16] = "";
+    int result = -1;
+    
+    get_input_field(win, 11, 4, input, sizeof(input), 1);
+    
+    if (strlen(input) > 0) {
+        result = atoi(input);
+        if (result <= 0) {
+            result = -1; // Invalid amount
+        }
+    } else {
+        result = -1; // Cancelled or empty input
+    }
+
+    delwin(win);
+    clear();
+    refresh();
+    endwin();
+    return result; // Returns HP amount to repair, or -1 if cancelled
+}
+
+// Home menu: team management hub with user info
+int home_menu_ncurses(const char *username, long coin, const char *team_name, int hp, int armor) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(0);
+    erase();
+    refresh();
+
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+
+    int win_h = 26;
+    int win_w = 75;
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    keypad(win, TRUE);
+    box(win, 0, 0);
+
+    // Title
+    mvwprintw(win, 1, (win_w - 9) / 2, "HOME MENU");
+
+    // User Information Section
+    mvwprintw(win, 3, 2, "=== USER INFORMATION ===");
+    if (username && strlen(username) > 0) {
+        mvwprintw(win, 4, 4, "Username: %s", username);
+    } else {
+        mvwprintw(win, 4, 4, "Username: Unknown");
+    }
+    
+    if (coin >= 0) {
+        mvwprintw(win, 5, 4, "Coin:     %ld", coin);
+    } else {
+        mvwprintw(win, 5, 4, "Coin:     --");
+    }
+    
+    if (team_name && strlen(team_name) > 0) {
+        mvwprintw(win, 6, 4, "Team:     %s", team_name);
+    } else {
+        mvwprintw(win, 6, 4, "Team:     (No team)");
+    }
+    
+    if (hp >= 0) {
+        mvwprintw(win, 7, 4, "HP:       %d", hp);
+    } else {
+        mvwprintw(win, 7, 4, "HP:       --");
+    }
+    
+    if (armor >= 0) {
+        mvwprintw(win, 8, 4, "Armor:    %d", armor);
+    } else {
+        mvwprintw(win, 8, 4, "Armor:    --");
+    }
+
+    mvwprintw(win, 10, 2, "=== TEAM MANAGEMENT ===");
+
+    // Menu options
+    const char *menu_items[] = {
+        "1. Create Team",
+        "2. Join Team Request",
+        "3. List All Teams",
+        "4. View My Invites",
+        "5. Back to Main Menu"
+    };
+    int menu_count = 5;
+    int selected = 0;
+
+    while (1) {
+        // Draw menu items
+        for (int i = 0; i < menu_count; i++) {
+            if (i == selected) {
+                wattron(win, A_REVERSE);
+            }
+            mvwprintw(win, 12 + i * 2, 4, "%-65s", menu_items[i]);
+            if (i == selected) {
+                wattroff(win, A_REVERSE);
+            }
+        }
+
+        // Instructions
+        mvwprintw(win, 22, 2, "Navigation:");
+        mvwprintw(win, 23, 2, "  Up/Down: Navigate | Enter: Select | ESC: Back");
+        mvwprintw(win, 24, 2, "  Number Keys (1-5): Quick select");
+        
+        wrefresh(win);
+
+        int ch = wgetch(win);
+        if (ch == KEY_UP || ch == 'k' || ch == 'K') {
+            if (selected > 0) selected--;
+        } else if (ch == KEY_DOWN || ch == 'j' || ch == 'J') {
+            if (selected < menu_count - 1) selected++;
+        } else if (ch == '\n' || ch == KEY_ENTER) {
+            break;
+        } else if (ch == 27) { // ESC
+            selected = -1;
+            break;
+        } else if (ch >= '1' && ch <= '5') {
+            selected = ch - '1';
+            break;
+        }
+    }
+
+    int result = selected; // 0=Create, 1=Join, 2=List, 3=ViewInvites, 4=Back, -1=Cancel
+    delwin(win);
+    clear();
+    refresh();
+    endwin();
+    return result;
+}
+
+// Create team: input team name
+int home_create_team_ncurses(char *team_name, size_t team_name_size) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(1);  // Show cursor
+    erase();
+    refresh();
+
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+
+    int win_h = 12;
+    int win_w = 60;
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    keypad(win, TRUE);
+    box(win, 0, 0);
+
+    mvwprintw(win, 1, (win_w - 11) / 2, "CREATE TEAM");
+    mvwprintw(win, 3, 2, "Enter the name for your new team:");
+    mvwprintw(win, 5, 2, "Team Name: ");
+    mvwprintw(win, 7, 2, "Tips:");
+    mvwprintw(win, 8, 2, "- Team name should be unique");
+    mvwprintw(win, 9, 2, "- Press Enter to create, ESC to cancel");
+    
+    wrefresh(win);
+
+    // Get input
+    team_name[0] = '\0';
+    get_input_field(win, 5, 13, team_name, team_name_size, 1);
+    
+    int result = (strlen(team_name) > 0) ? 1 : 0; // 1=success, 0=cancelled
+    
+    delwin(win);
+    clear();
+    refresh();
+    endwin();
+    return result;
+}
+
+// Join team request: input team name
+int home_join_team_ncurses(char *team_name, size_t team_name_size) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(1);  // Show cursor
+    erase();
+    refresh();
+
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+
+    int win_h = 12;
+    int win_w = 60;
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    keypad(win, TRUE);
+    box(win, 0, 0);
+
+    mvwprintw(win, 1, (win_w - 17) / 2, "JOIN TEAM REQUEST");
+    mvwprintw(win, 3, 2, "Enter the team name you want to join:");
+    mvwprintw(win, 5, 2, "Team Name: ");
+    mvwprintw(win, 8, 2, "Press Enter to send request, ESC to cancel");
+    
+    wrefresh(win);
+
+    // Get input
+    team_name[0] = '\0';
+    get_input_field(win, 5, 13, team_name, team_name_size, 1);
+    
+    int result = (strlen(team_name) > 0) ? 1 : 0; // 1=success, 0=cancelled
+    
+    delwin(win);
+    clear();
+    refresh();
+    endwin();
+    return result;
+}
+
+int home_view_invites_ncurses(const char *invites_data, char *team_name_out, size_t team_name_out_size, int *action_out) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(0);
+    erase();
+    refresh();
+
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+
+    int win_h = 24;
+    int win_w = 70;
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    keypad(win, TRUE);
+    box(win, 0, 0);
+
+    mvwprintw(win, 1, (win_w - 13) / 2, "MY INVITES");
+    
+    char invites_copy[2048];
+    strncpy(invites_copy, invites_data ? invites_data : "", sizeof(invites_copy) - 1);
+    invites_copy[sizeof(invites_copy) - 1] = '\0';
+    
+    char team_names[20][128];
+    int team_count = 0;
+
+    char *line = strtok(invites_copy, "|"); 
+    while (line != NULL && team_count < 20) {
+        while (*line && isspace(*line)) line++;
+        
+        if (strlen(line) > 0) {
+            strncpy(team_names[team_count], line, 127);
+            team_names[team_count][127] = '\0';
+            team_count++;
+        }
+        line = strtok(NULL, "|");
+    }
+
+    if (team_count == 0 || (team_count == 1 && strstr(team_names[0], "No pending") != NULL)) {
+        mvwprintw(win, 5, 2, "No pending invites.");
+        mvwprintw(win, 7, 2, "Press any key to back...");
+        wrefresh(win);
+        wgetch(win);
+        delwin(win);
+        clear();
+        refresh();
+        endwin();
+        return 0;
+    }
+
+    mvwprintw(win, 3, 2, "You have %d pending invite(s):", team_count);
+    
+    int selected = 0;
+    int result = -1;
+    
+    while (1) {
+        for (int i = 0; i < 10; i++) { 
+            // Xóa dòng cũ
+            for(int k=2; k<win_w-2; k++) mvwaddch(win, 5+i, k, ' '); 
+            
+            if (i < team_count) {
+                if (i == selected) wattron(win, A_REVERSE);
+                mvwprintw(win, 5 + i, 4, "%d. %s", i + 1, team_names[i]);
+                if (i == selected) wattroff(win, A_REVERSE);
+            }
+        }
+        
+        // Hướng dẫn
+        mvwprintw(win, 18, 2, "Navigation:");
+        mvwprintw(win, 19, 2, " UP/DOWN: Select | A: Accept | R: Reject | ESC: Back");
+        
+        wrefresh(win);
+
+        int ch = wgetch(win);
+        
+        // --- XỬ LÝ PHÍM BẤM ---
+        
+        if (ch == KEY_UP || ch == 'k' || ch == 'K') {
+            if (selected > 0) selected--;
+        } 
+        else if (ch == KEY_DOWN || ch == 'j' || ch == 'J') {
+            if (selected < team_count - 1) selected++;
+        } 
+        
+        // Xử lý ACCEPT
+        else if (ch == 'a' || ch == 'A' || ch == '\n' || ch == KEY_ENTER) {
+            char *raw_name = team_names[selected];
+            strncpy(team_name_out, raw_name, team_name_out_size - 1);
+            team_name_out[team_name_out_size - 1] = '\0';
+
+            // Cắt bỏ phần " (ID: ...)"
+            char *p = strchr(team_name_out, '(');
+            if (p != NULL) *p = '\0';
+
+            // Trim khoảng trắng cuối
+            int len = strlen(team_name_out);
+            while (len > 0 && team_name_out[len - 1] == ' ') team_name_out[--len] = '\0';
+
+            *action_out = 1; // 1 = Accept
+            result = 1;      // Báo thành công
+            break;
+        } 
+        
+        // Xử lý REJECT
+        else if (ch == 'r' || ch == 'R' || ch == KEY_DC) { // KEY_DC là nút Delete
+            char *raw_name = team_names[selected];
+            strncpy(team_name_out, raw_name, team_name_out_size - 1);
+            team_name_out[team_name_out_size - 1] = '\0';
+
+            // Cắt bỏ phần " (ID: ...)"
+            char *p = strchr(team_name_out, '(');
+            if (p != NULL) *p = '\0';
+
+            // Trim khoảng trắng cuối
+            int len = strlen(team_name_out);
+            while (len > 0 && team_name_out[len - 1] == ' ') team_name_out[--len] = '\0';
+
+            *action_out = 0; // 0 = Reject
+            result = 1;      // Báo thành công
+            break;
+        } 
+        
+        // Thoát
+        else if (ch == 27) { // ESC
+            result = -1;
+            break;
+        }
+    }
+
+    delwin(win);
+    clear();
+    refresh();
+    endwin();
+    return result;
+}
+
+// Team menu: detailed team management
+// Returns: 0=Leave, 1=Invite, 2=Accept Join Request, 3=Challenge, 4=Back, -1=Cancel
+// File: TCP_Client/ui.c
+
+// Team menu: detailed team management
+// Returns: 0=Leave, 1=Invite, 2=Kick, 3=View Requests, 4=Challenge, 5=Back
+int team_menu_ncurses(int team_id, const char *team_name, const char *captain, int member_count, const char *members_list) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(0);
+    erase();
+    refresh();
+
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+
+    int win_h = 30; // Tăng chiều cao
+    int win_w = 75;
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    keypad(win, TRUE);
+    box(win, 0, 0);
+
+    // Title
+    mvwprintw(win, 1, (win_w - 9) / 2, "TEAM MENU");
+
+    // Team Information Section
+    mvwprintw(win, 3, 2, "=== TEAM INFORMATION ===");
+    mvwprintw(win, 4, 4, "Team ID:      %d", team_id);
+    mvwprintw(win, 5, 4, "Team Name:    %s", team_name ? team_name : "(Unknown)");
+    mvwprintw(win, 6, 4, "Captain:      %s", captain ? captain : "(Unknown)");
+    mvwprintw(win, 7, 4, "Member Count: %d", member_count);
+
+    // Members list
+    mvwprintw(win, 9, 2, "=== TEAM MEMBERS ===");
+    if (members_list && strlen(members_list) > 0) {
+        char members_copy[1024];
+        strncpy(members_copy, members_list, sizeof(members_copy) - 1);
+        members_copy[sizeof(members_copy) - 1] = '\0';
+        
+        int line = 10;
+        char *member = strtok(members_copy, "\n");
+        while (member != NULL && line < 15) {
+            while (*member && isspace(*member)) member++;
+            if (strlen(member) > 0) {
+                mvwprintw(win, line++, 4, "- %s", member);
+            }
+            member = strtok(NULL, "\n");
+        }
+    } else {
+        mvwprintw(win, 10, 4, "(No members)");
+    }
+
+    mvwprintw(win, 16, 2, "=== TEAM ACTIONS ===");
+
+    const char *menu_items[] = {
+        "1. Leave Team",
+        "2. Invite Member",
+        "3. Kick Member",             
+        "4. View Join Requests",     
+        "5. Challenge Another Team",
+        "6. Back to Main Menu"
+    };
+    int menu_count = 6;
+    int selected = 0;
+
+    while (1) {
+        for (int i = 0; i < menu_count; i++) {
+            if (i == selected) wattron(win, A_REVERSE);
+            mvwprintw(win, 18 + i, 4, "%-65s", menu_items[i]);
+            if (i == selected) wattroff(win, A_REVERSE);
+        }
+
+        mvwprintw(win, 26, 2, "Navigation:");
+        mvwprintw(win, 27, 2, "  Up/Down: Navigate | Enter: Select | ESC: Back");
+        mvwprintw(win, 28, 2, "  Number Keys (1-6): Quick select");
+        
+        wrefresh(win);
+
+        int ch = wgetch(win);
+        if (ch == KEY_UP || ch == 'k' || ch == 'K') {
+            if (selected > 0) selected--;
+        } else if (ch == KEY_DOWN || ch == 'j' || ch == 'J') {
+            if (selected < menu_count - 1) selected++;
+        } else if (ch == '\n' || ch == KEY_ENTER) {
+            break;
+        } else if (ch == 27) { // ESC
+            selected = -1;
+            break;
+        } else if (ch >= '1' && ch <= '0' + menu_count) {
+            selected = ch - '1';
+            break;
+        }
+    }
+
+    int result = selected;
+    delwin(win);
+    clear();
+    refresh();
+    endwin();
+    return result;
+}
+// Invite member: input username
+int team_invite_member_ncurses(char *username, size_t username_size) {
     initscr();
     cbreak();
     noecho();
@@ -909,153 +1390,340 @@ int popup_input_ncurses(const char *title, const char *question, char *buffer, s
     curs_set(1);
     erase();
     refresh();
-    
+
     int max_y, max_x;
     getmaxyx(stdscr, max_y, max_x);
-    int win_h = 14; int win_w = 70; // Tăng chiều cao để chứa câu hỏi dài
-    WINDOW *win = newwin(win_h, win_w, (max_y - win_h)/2, (max_x - win_w)/2);
-    keypad(win, TRUE); box(win, 0, 0);
-    
-    mvwprintw(win, 1, (win_w - strlen(title))/2, "%s", title);
-    
-    // In câu hỏi (tự động xuống dòng nếu dài)
-    int q_len = strlen(question);
-    int line_width = win_w - 4;
-    int q_lines = (q_len / line_width) + 1;
-    for (int i = 0; i < q_lines; i++) {
-        mvwprintw(win, 3 + i, 2, "%.*s", line_width, question + (i * line_width));
-    }
 
-    mvwprintw(win, 3 + q_lines + 1, 2, "Answer: ");
-    mvwprintw(win, win_h - 2, (win_w - 30)/2, "Enter: Submit | ESC: Cancel");
+    int win_h = 12;
+    int win_w = 60;
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    keypad(win, TRUE);
+    box(win, 0, 0);
+
+    mvwprintw(win, 1, (win_w - 13) / 2, "INVITE MEMBER");
+    mvwprintw(win, 3, 2, "Enter the username to invite to your team:");
+    mvwprintw(win, 5, 2, "Username: ");
+    mvwprintw(win, 8, 2, "Press Enter to send invite, ESC to cancel");
+    
     wrefresh(win);
+
+    username[0] = '\0';
+    get_input_field(win, 5, 12, username, username_size, 1);
     
-    curs_set(1); echo();
-    wmove(win, 3 + q_lines + 1, 10);
-    int ch = wgetnstr(win, buffer, size - 1);
-    noecho(); curs_set(0);
-    delwin(win); clear(); refresh();
+    int result = (strlen(username) > 0) ? 1 : 0;
+    
+    delwin(win);
+    clear();
+    refresh();
     endwin();
-    
-    if (ch == ERR) return 0;
-    return (strlen(buffer) > 0);
+    return result;
 }
-int battle_screen_ncurses(const char *my_username,
-    const char **team_left, int *team_left_hp, int left_count,
-    const char **team_right, int *team_right_hp, int right_count,
-    int my_hp, int my_armor, int my_coin,
-    int active_chest_id,
-    char *out_target_username, size_t out_target_username_size,
-    int *out_weapon_id) {
+
+// Accept join request: display list and allow accept/reject
+int team_accept_join_request_ncurses(const char *requests_data, char *username_out, size_t username_out_size, int *action_out) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(0);
+    erase();
+    refresh();
+
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+
+    int win_h = 24;
+    int win_w = 70;
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    keypad(win, TRUE);
+    box(win, 0, 0);
+
+    mvwprintw(win, 1, (win_w - 18) / 2, "JOIN REQUESTS");
     
-    initscr(); cbreak(); noecho(); keypad(stdscr, TRUE); curs_set(0);
-    erase(); refresh();
-
-    int max_y, max_x; getmaxyx(stdscr, max_y, max_x);
-    int win_h = (max_y > 24) ? 24 : max_y - 1;
-    int win_w = (max_x > 80) ? 80 : max_x - 1;
+    // Parse requests (format: "username1\nusername2\n...")
+    char requests_copy[2048];
+    strncpy(requests_copy, requests_data ? requests_data : "", sizeof(requests_copy) - 1);
+    requests_copy[sizeof(requests_copy) - 1] = '\0';
     
-    if (win_h < 22 || win_w < 60) {
-        endwin(); printf("Terminal too small! Resize needed.\n"); return -1;
-    }
-
-    WINDOW *win = newwin(win_h, win_w, (max_y - win_h)/2, (max_x - win_w)/2);
-    keypad(win, TRUE); box(win, 0, 0);
-
-    mvwprintw(win, 1, 2, "[S] Shop");
-    mvwprintw(win, 1, (win_w - 12)/2, "BATTLE FIELD");
-    mvwprintw(win, 1, win_w - 50, "HP:%d Armor:%d Coin:%d", my_hp, my_armor, my_coin); 
-
-    int col_left = 4, col_right = win_w - 24, row_top = 4;
-    mvwprintw(win, 2, col_left, "TEAM A"); mvwprintw(win, 2, col_right, "TEAM B");
-
-    if (active_chest_id > 0) {
-        wattron(win, A_BOLD | A_REVERSE);
-        mvwprintw(win, win_h/2, win_w/2 - 2, "[ $ ]"); 
-        wattroff(win, A_BOLD | A_REVERSE);
-        mvwprintw(win, win_h/2 + 1, win_w/2 - 4, "Press 'C'");
-    }
-
-    for (int i = 0; i < 3; i++) {
-        int y = row_top + i * 5;
-        int has_p = (i < left_count && team_left[i]);
-        int dead = (has_p && team_left_hp[i] <= 0);
-        if (dead) wattron(win, A_DIM);
-        
-        mvwhline(win, y, col_left, '-', 16);
-        mvwhline(win, y+3, col_left, '-', 16);
-        mvwvline(win, y+1, col_left, '|', 2);
-        mvwvline(win, y+1, col_left+15, '|', 2);
-        
-        if (has_p) {
-            mvwprintw(win, y+1, col_left+2, "%.*s", 12, team_left[i]);
-            mvwprintw(win, y+2, col_left+2, "HP:%d", team_left_hp[i]);
-            if (my_username && strcmp(my_username, team_left[i]) == 0) 
-                mvwprintw(win, y+2, col_left+10, "(Me)");
-            if (dead) mvwprintw(win, y+1, col_left+13, "XX");
-        } else mvwprintw(win, y+1, col_left+2, "[Empty]");
-        if (dead) wattroff(win, A_DIM);
-    }
-
-    static int sel = 0;
-    if (sel > 2) sel = 0;
-
-    while (1) {
-        for (int i = 0; i < 3; i++) {
-            int y = row_top + i * 5;
-            int has_p = (i < right_count && team_right[i]);
-            int dead = (has_p && team_right_hp[i] <= 0);
-            
-            if (i == sel) wattron(win, A_REVERSE);
-            
-            mvwhline(win, y, col_right, '-', 16);
-            mvwhline(win, y+3, col_right, '-', 16);
-            mvwvline(win, y+1, col_right, '|', 2);
-            mvwvline(win, y+1, col_right+15, '|', 2);
-            
-            if (has_p) {
-                if (dead) wattron(win, A_DIM);
-                mvwprintw(win, y+1, col_right+2, "%.*s", 12, team_right[i]);
-                mvwprintw(win, y+2, col_right+2, "HP:%d", team_right_hp[i]);
-                if (dead) {
-                    mvwprintw(win, y+1, col_right+13, "XX");
-                    wattroff(win, A_DIM);
-                }
-            } else {
-                mvwprintw(win, y+1, col_right+2, "[Empty]");
-            }
-            
-            if (i == sel) wattroff(win, A_REVERSE);
+    char usernames[20][128];
+    int user_count = 0;
+    char *line = strtok(requests_copy, "\n");
+    while (line != NULL && user_count < 20) {
+        while (*line && isspace(*line)) line++;
+        if (strlen(line) > 0) {
+            strncpy(usernames[user_count], line, 127);
+            usernames[user_count][127] = '\0';
+            user_count++;
         }
+        line = strtok(NULL, "\n");
+    }
 
-        mvwprintw(win, win_h-2, 2, "Up/Down: Target | Enter: FIRE | S: Shop | C: Chest | ESC");
+    if (user_count == 0) {
+        mvwprintw(win, 3, 2, "No pending join requests.");
+        mvwprintw(win, 5, 2, "Press any key to go back...");
+        wrefresh(win);
+        wgetch(win);
+        
+        delwin(win);
+        clear();
+        refresh();
+        endwin();
+        return 0;
+    }
+
+    mvwprintw(win, 3, 2, "You have %d pending join request(s):", user_count);
+    
+    int selected = 0;
+    int result = -1;
+    
+    while (1) {
+        for (int i = 5; i < 17; i++) {
+            for (int j = 2; j < win_w - 2; j++) {
+                mvwaddch(win, i, j, ' ');
+            }
+        }
+        
+        int display_start = (selected / 10) * 10;
+        int display_count = (user_count - display_start > 10) ? 10 : (user_count - display_start);
+        
+        for (int i = 0; i < display_count; i++) {
+            int idx = display_start + i;
+            if (idx == selected) wattron(win, A_REVERSE);
+            mvwprintw(win, 5 + i, 4, "%2d. %s", idx + 1, usernames[idx]);
+            if (idx == selected) wattroff(win, A_REVERSE);
+        }
+        
+        mvwprintw(win, 18, 2, "Navigation:");
+        mvwprintw(win, 19, 2, "  Up/Down: Navigate | A: Approve | R: Reject | ESC: Back");
+        mvwprintw(win, 20, 2, "Selected: %s", usernames[selected]);
+        
+        wrefresh(win);
+
+        int ch = wgetch(win);
+        if (ch == KEY_UP || ch == 'k' || ch == 'K') {
+            if (selected > 0) selected--;
+        } else if (ch == KEY_DOWN || ch == 'j' || ch == 'J') {
+            if (selected < user_count - 1) selected++;
+        } else if (ch == 'a' || ch == 'A') {
+            strncpy(username_out, usernames[selected], username_out_size - 1);
+            username_out[username_out_size - 1] = '\0';
+            *action_out = 1; // Approve
+            result = 1;
+            break;
+        } else if (ch == 'r' || ch == 'R') {
+            strncpy(username_out, usernames[selected], username_out_size - 1);
+            username_out[username_out_size - 1] = '\0';
+            *action_out = 0; // Reject
+            result = 1;
+            break;
+        } else if (ch == 27) {
+            result = -1;
+            break;
+        }
+    }
+
+    delwin(win);
+    clear();
+    refresh();
+    endwin();
+    return result;
+}
+
+// Challenge team: input team ID or name
+int team_challenge_ncurses(char *target_team, size_t target_team_size) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(1);
+    erase();
+    refresh();
+
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+
+    int win_h = 14;
+    int win_w = 65;
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    keypad(win, TRUE);
+    box(win, 0, 0);
+
+    mvwprintw(win, 1, (win_w - 14) / 2, "CHALLENGE TEAM");
+    mvwprintw(win, 3, 2, "Enter the Team ID to challenge:");
+    mvwprintw(win, 5, 2, "Team ID: ");
+    mvwprintw(win, 7, 2, "Tips:");
+    mvwprintw(win, 8, 2, "- You can find team IDs in the team list");
+    mvwprintw(win, 9, 2, "- Both teams must have 3 members");
+    mvwprintw(win, 10, 2, "Press Enter to send challenge, ESC to cancel");
+    
+    wrefresh(win);
+
+    target_team[0] = '\0';
+    get_input_field(win, 5, 11, target_team, target_team_size, 1);
+    
+    int result = (strlen(target_team) > 0) ? 1 : 0;
+    
+    delwin(win);
+    clear();
+    refresh();
+    endwin();
+    return result;
+}
+
+int team_kick_member_ncurses(char *username, size_t username_size) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(1);
+    erase();
+    refresh();
+
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+
+    int win_h = 12;
+    int win_w = 60;
+    WINDOW *win = newwin(win_h, win_w, (max_y - win_h)/2, (max_x - win_w)/2);
+    keypad(win, TRUE);
+    box(win, 0, 0);
+
+    mvwprintw(win, 1, (win_w - 11) / 2, "KICK MEMBER");
+    mvwprintw(win, 3, 2, "Enter username to kick from team:");
+    mvwprintw(win, 5, 2, "Username: ");
+    mvwprintw(win, 8, 2, "Press Enter to kick, ESC to cancel");
+    
+    wrefresh(win);
+
+    username[0] = '\0';
+    get_input_field(win, 5, 12, username, username_size, 1);
+    
+    int result = (strlen(username) > 0) ? 1 : 0;
+    
+    delwin(win);
+    clear();
+    refresh();
+    endwin();
+    return result;
+}
+
+int team_view_join_requests_ncurses(const char *requests_data, char *username_out, size_t username_out_size, int *action_out) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(0);
+    erase();
+    refresh();
+
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+
+    int win_h = 24;
+    int win_w = 70;
+    WINDOW *win = newwin(win_h, win_w, (max_y - win_h)/2, (max_x - win_w)/2);
+    keypad(win, TRUE);
+    box(win, 0, 0);
+
+    mvwprintw(win, 1, (win_w - 18) / 2, "JOIN REQUESTS");
+    
+    char req_copy[2048];
+    strncpy(req_copy, requests_data ? requests_data : "", sizeof(req_copy) - 1);
+    req_copy[sizeof(req_copy) - 1] = '\0';
+    
+    char usernames[20][128];
+    int user_count = 0;
+    
+    char *line = strtok(req_copy, "|");
+    while (line != NULL && user_count < 20) {
+        while (*line && isspace(*line)) line++;
+        if (strlen(line) > 0) {
+            strncpy(usernames[user_count], line, 127);
+            usernames[user_count][127] = '\0';
+            user_count++;
+        }
+        line = strtok(NULL, "|");
+    }
+
+    if (user_count == 0 || (user_count == 1 && strstr(usernames[0], "No requests") != NULL)) {
+        mvwprintw(win, 5, 2, "No pending join requests.");
+        mvwprintw(win, 7, 2, "Press any key to back...");
+        wrefresh(win);
+        wgetch(win);
+        delwin(win);
+        clear();
+        refresh();
+        endwin();
+        return 0;
+    }
+
+    mvwprintw(win, 3, 2, "Pending requests (%d):", user_count);
+    
+    int selected = 0;
+    int result = -1;
+    
+    while (1) {
+        for (int i = 0; i < 10; i++) {
+            for(int k=2; k<win_w-2; k++) mvwaddch(win, 5+i, k, ' '); 
+            
+            if (i < user_count) {
+                if (i == selected) wattron(win, A_REVERSE);
+                mvwprintw(win, 5 + i, 4, "%d. %s", i + 1, usernames[i]);
+                if (i == selected) wattroff(win, A_REVERSE);
+            }
+        }
+        
+        mvwprintw(win, 18, 2, "Navigation:");
+        mvwprintw(win, 19, 2, " UP/DOWN: Select | A: Approve | R: Reject | ESC: Back");
+        
         wrefresh(win);
 
         int ch = wgetch(win);
         if (ch == KEY_UP) {
-            sel--; if (sel < 0) sel = 2; 
+            if (selected > 0) selected--;
         } else if (ch == KEY_DOWN) {
-            sel++; if (sel > 2) sel = 0;
-        } else if (ch == 's' || ch == 'S') { delwin(win); endwin(); return 0; }
-        else if (ch == 'c' || ch == 'C') { 
-            if(active_chest_id > 0) { delwin(win); endwin(); return 2; }
-        }
-        else if (ch == 27) { delwin(win); endwin(); return -1; }
-        else if (ch == '\n' || ch == KEY_ENTER || ch == 'f' || ch == 'F') {
-            if (sel >= 0 && sel < right_count && team_right[sel]) {
-                if (team_right_hp[sel] <= 0) {
-                    mvwprintw(win, win_h-2, 2, "TARGET DEAD! Select another.                  ");
-                    wrefresh(win); napms(500);
-                } else {
-                    if (out_target_username) strcpy(out_target_username, team_right[sel]);
-                    if (out_weapon_id) *out_weapon_id = 0;
-                    delwin(win); endwin(); return 1;
-                }
-            } else {
-                mvwprintw(win, win_h-2, 2, "INVALID TARGET! (Empty slot)                  ");
-                wrefresh(win); napms(500);
-            }
+            if (selected < user_count - 1) selected++;
+        } else if (ch == 'a' || ch == 'A' || ch == '\n') { // Approve
+            strncpy(username_out, usernames[selected], username_out_size - 1);
+            username_out[username_out_size - 1] = '\0';
+            
+            // Trim space if needed
+            int len = strlen(username_out);
+            while(len > 0 && username_out[len-1] == ' ') username_out[--len] = '\0';
+
+            *action_out = 1; 
+            result = 1;
+            break;
+        } else if (ch == 'r' || ch == 'R' || ch == KEY_DC) { // Reject
+            strncpy(username_out, usernames[selected], username_out_size - 1);
+            username_out[username_out_size - 1] = '\0';
+            
+            int len = strlen(username_out);
+            while(len > 0 && username_out[len-1] == ' ') username_out[--len] = '\0';
+
+            *action_out = 0;
+            result = 1;
+            break;
+        } else if (ch == 27) { // ESC
+            result = -1;
+            break;
         }
     }
+
+    delwin(win);
+    clear();
+    refresh();
+    endwin();
+    return result;
 }
+
 #endif
