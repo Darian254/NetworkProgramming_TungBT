@@ -49,20 +49,6 @@ void whoami_ui_ncurses(const char *response);
 void show_message_ncurses(const char *title, const char *message);
 
 /**
- * @brief Display a message dialog in battle screen (does not call endwin).
- * @param title Dialog title
- * @param message Message to display
- */
-void show_message_in_battle_screen(const char *title, const char *message);
-
-/**
- * @brief Display a message dialog in battle screen with ncurses initialization and cleanup.
- * @param title Dialog title
- * @param message Message to display
- */
-void show_message_in_battle_screen_with_init(const char *title, const char *message);
-
-/**
  * @brief Display main menu using ncurses and get user selection.
  * @return Selected option number (0-23) or FUNC_EXIT if cancelled
  */
@@ -95,32 +81,22 @@ int shop_armor_menu_ncurses(int coin);
 int shop_weapon_menu_ncurses(int coin);
 
 /**
- * @brief Show a popup dialog to get user input (for answering chest questions)
- * @param title Title of the popup
- * @param question The question text to display
- * @param buffer Output buffer for the answer
- * @param size Size of the buffer
- * @return 1 if submitted, 0 if cancelled
+ * @brief Display repair ship screen with HP input field.
+ * @param current_hp Current ship HP (for display, -1 if unknown)
+ * @param max_hp Maximum ship HP (for display, -1 if unknown)
+ * @param coin Current coin to display (upper-right)
+ * @return HP amount to repair (positive integer), or -1 if cancelled
  */
-int popup_input_ncurses(const char *title, const char *question, char *buffer, size_t size);
+int shop_repair_menu_ncurses(int current_hp, int max_hp, int coin);
 
 /**
- * @brief Battle screen: show 6 ships, HP, Armor, Coin, Shop, and Treasure Chest.
- * @param my_username Current player's username
- * @param team_left Array of friendly usernames
- * @param team_left_hp Array of friendly HP values
- * @param left_count Number of friendly ships
- * @param team_right Array of enemy usernames
- * @param team_right_hp Array of enemy HP values
- * @param right_count Number of enemy ships
- * @param my_hp Current player's ship HP
- * @param my_armor Current player's total armor value
- * @param my_coin Current player's coin
- * @param active_chest_id ID of the active chest (-1 if none)
- * @param out_target_username Output: selected enemy username
- * @param out_target_username_size Size of output buffer
- * @param out_weapon_id Output: 0=cannon, 1=laser, 2=missile
- * @return 1=FIRE, 0=SHOP, 2=OPEN_CHEST, -1=CANCEL
+ * @brief Display home menu for team management with user information.
+ * @param username Current logged-in username (for display)
+ * @param coin Current coin balance (-1 if unknown)
+ * @param team_name Current team name (NULL or empty if no team)
+ * @param hp Current HP (-1 if unknown)
+ * @param armor Current armor (-1 if unknown)
+ * @return 0=Create Team, 1=Join Request, 2=List Teams, 3=View Invites, 4=Back, -1=Cancel
  */
 int battle_screen_ncurses(const char *my_username,
     const char **team_left, int *team_left_hp, int left_count,
