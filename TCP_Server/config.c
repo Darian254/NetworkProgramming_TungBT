@@ -9,4 +9,3 @@ const char *get_response_message(ResponseCode code) {
     }
     return NULL;
 }
-

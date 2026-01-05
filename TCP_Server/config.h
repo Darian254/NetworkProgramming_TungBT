@@ -44,7 +44,11 @@ typedef enum {
     FUNC_START_MATCH = 20,       /**< Start a match */
     FUNC_GET_MATCH_RESULT = 21 ,/**< Check match result */
     FUNC_END_MATCH = 22,        /**< End current match */
-
+    FUNC_FIRE = 45,          /**< Bắn tàu khác */
+    FUNC_CHALLENGE = 46,     /**< Gửi lời thách đấu */
+    FUNC_OPEN_CHEST = 41,
+    FUNC_ACCEPT_CHALLENGE = 42,  /**< Accept challenge */
+    FUNC_DECLINE_CHALLENGE = 43, /**< Decline challenge */
     // TODO: Repair HP - fix later
     FUNC_REPAIR = 23,       /**< Repair HP */
     
@@ -68,6 +72,7 @@ typedef enum {
     FUNC_SHOP_MENU = 36,        /**< Shop menu */
     FUNC_BUY_WEAPON = 37,     /**< Buy weapon */
     FUNC_GET_WEAPON = 38,     /**< Get weapon info */
+    FUNC_BATTLE_SCREEN = 44,    /**< Open battle screen UI */
     FUNC_HOME_MENU = 39,      /**< Home menu for team management */
     FUNC_TEAM_MENU = 40       /**< Team menu for detailed team management */
 
@@ -90,7 +95,7 @@ typedef enum {
     RESP_TEAM_INVITED = 124,      /**< Invitation sent */
     RESP_JOIN_REQUEST_RECEIVED = 125, /**< Join request received (notification) */
     RESP_TEAM_INVITE_RECEIVED = 130,  /**< Team invite received  */
-    RESP_TEAM_INVITE_ACCEPTED = 126,  /**< Invitation accepted */
+    RESP_TEAM_INVITE_ACCEPTED = 135,  /**< Invitation accepted */
     RESP_TEAM_INVITE_REJECTED = 127,  /**< Invitation rejected */
     RESP_TEAM_DELETED = 128,      /**< Team deleted */
     RESP_KICK_MEMBER_OK = 129,    /**< Member kicked successfully */
@@ -170,21 +175,26 @@ typedef enum {
     RESP_INVALID_TARGET = 343,       /**< Invalid target */
     RESP_TARGET_DESTROYED = 344,     /**< Target destroyed */
     RESP_NOT_YOUR_TURN = 335,        /**< Not your turn */
-    RESP_CHEST_DROP_OK = 140,     
+    RESP_CHEST_DROP_OK = 141,  
+    RESP_FIRE_OK =     200,
     
     /* Error codes - Chest (Dự phòng cho logic mở rương) */
     RESP_CHEST_NOT_FOUND = 440,    /**< Chest ID invalid */
     RESP_CHEST_ALREADY_OPENED = 441, 
     RESP_WRONG_ANSWER = 442,       
-    RESP_CHEST_OPEN_OK = 127,
+    RESP_CHEST_OPEN_OK = 145,
     RESP_MATCH_FINISHED = 325,
     RESP_CHEST_OPEN_FAIL = 339,
     RESP_CHEST_BROADCAST = 210,
+    RESP_CHEST_QUESTION = 211,
+    // RESP_CHEST_NOT_FOUND = 341,
 
-    RESP_CHALLENGE_SENT = 130,      /**< Challenge sent successfully */
+    RESP_CHALLENGE_SENT = 136,      /**< Challenge sent successfully */
     RESP_CHALLENGE_ACCEPTED = 131,  /**< Challenge accepted */
     RESP_CHALLENGE_DECLINED = 132,  /**< Challenge declined */
     RESP_CHALLENGE_CANCELED = 133,  /**< Challenge canceled */
+    RESP_CHALLENGE_RECEIVED = 150,  /**< Thông báo có đội khác đang thách đấu mình */
+    RESP_MATCH_STARTED_NOTIFY = 151, /**<Thông báo đối thủ đã chấp nhận, trận đấu bắt đầu */
 
     /* Error codes - Challenge */
     RESP_CHALLENGE_NOT_FOUND = 332, /**< Challenge ID does not exist */
@@ -299,14 +309,15 @@ static const ResponseMessage RESPONSE_MESSAGES[] = {
     {RESP_BUY_ITEM_FAILED,   "Item purchase failed."},
      
     //Chest drop and open
-    {RESP_CHEST_DROP_OK,        "140 CHEST_DROP_OK: A treasure chest has appeared!"},
+    {RESP_CHEST_DROP_OK,        "141 A treasure chest has appeared!"},
     {RESP_CHEST_NOT_FOUND,      "440 ERROR: Treasure chest not found."},
     {RESP_CHEST_ALREADY_OPENED, "441 ERROR: This chest has already been claimed."},
     {RESP_WRONG_ANSWER,         "442 ERROR: Incorrect answer. Try again!"},
-    {RESP_CHEST_OPEN_OK,        "127 CHEST_OK: Chest opened successfully."},
+    {RESP_CHEST_OPEN_OK,        "145 CHEST_OK: Chest opened successfully."},
     {RESP_MATCH_FINISHED,       "325 ERROR: Match has already finished."},
     {RESP_CHEST_OPEN_FAIL,      "339 ERROR: Chest has already been opened."},
     {RESP_CHEST_BROADCAST,      "210 CHEST_COLLECTED: A chest has been collected in the match."},
+    {RESP_CHEST_QUESTION,       "211 Question chest ."    },
 
     //Challenge
     {RESP_CHALLENGE_SENT,     "130 CHALLENGE_SENT successful."},
@@ -316,7 +327,10 @@ static const ResponseMessage RESPONSE_MESSAGES[] = {
     
     {RESP_CHALLENGE_NOT_FOUND, "332 CHALLENGE_NOT_FOUND error."},
     {RESP_ALREADY_RESPONDED,   "333 ALREADY_RESPONDED (Already accepted/declined/canceled)."},
-    {RESP_NOT_SENDER,          "334 NOT_SENDER: Only the challenger can cancel."}
+    {RESP_NOT_SENDER,          "334 NOT_SENDER: Only the challenger can cancel."},
+    {RESP_CHALLENGE_SENT,       "136 Challenge sent successfully. Waiting for response..."},
+    {RESP_CHALLENGE_RECEIVED,   "150 You have received a challenge!"},
+    {RESP_MATCH_STARTED_NOTIFY, "151 Opponent accepted. Match started!"},
 };
 
 #define RESPONSE_MESSAGES_COUNT (sizeof(RESPONSE_MESSAGES) / sizeof(RESPONSE_MESSAGES[0]))
@@ -330,4 +344,3 @@ static const ResponseMessage RESPONSE_MESSAGES[] = {
 const char *get_response_message(ResponseCode code);
 
 #endif /* CONFIG_H */
-

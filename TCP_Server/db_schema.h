@@ -395,5 +395,14 @@ int get_armor_value(ArmorType type);
 /* Challenge operations */
 Challenge* find_challenge_by_id(int challenge_id);
 int create_challenge_record(int sender_team_id, int target_team_id);
+Challenge* find_challenge_by_id(int challenge_id);
+int create_challenge_record(int sender_team_id, int target_team_id);
+int find_latest_pending_challenge_for_team(int target_team_id);
+
+// Hàm hỗ trợ đội/nhóm
+int get_team_id_by_player_id(int player_id);
+
+// Hàm Game/Vũ khí
+WeaponTemplate* get_weapon_template(int weapon_id);
 
 #endif // DB_SCHEMA_H

@@ -36,7 +36,7 @@ typedef struct {
     struct sockaddr_in client_addr; /**< Client address */
     int current_team_id;        /**< Current team ID, -1 if not in team */
     int current_match_id;       /**< Current match ID, -1 if not in match */
-    int coin; //Lượng thêm
+    int coins; //Lượng thêm
 } ServerSession;
 
 /**
@@ -243,11 +243,13 @@ int server_handle_end_match(ServerSession *session, int match_id);
 
 
 
-void process_fire_request(int attacker_id, int target_id, int weapon_id);
-int calculate_and_update_damage(Ship* attacker, Ship* target, int weapon_id);
+int calculate_and_update_damage(Ship* attacker, Ship* target, int weapon_id, FireResult *out);
+void send_error_response(int socket_fd, int error_code, const char *details);
+void send_fire_ok(int attacker_socket, int target_id, int damage, int hp, int armor);
+void broadcast_fire_event(const char* attacker_name, const char* target_name, int dam, int hp, int armor);
 
 
-int server_handle_fire(ServerSession *session, int target_id, int weapon_id, FireResult *result);
+int server_handle_fire(ServerSession *session, char* target_name, int weapon_type, FireResult *result);
 
 /**
  * @brief Xử lý yêu cầu gửi lời thách đấu
@@ -288,7 +290,13 @@ int server_spawn_chest(int match_id);
  * @brief Gửi thông báo rương rơi tới toàn bộ người chơi trong trận đấu
  * @param match_id ID trận đấu cần thông báo
  */
-void broadcast_chest_drop(int match_id);
+int broadcast_chest_drop(int match_id, int exclude_socket_fd);
+
+/**
+ * @brief Gửi thông báo 151 MATCH_STARTED tới tất cả thành viên trong match
+ * @param match_id ID của match
+ */
+void broadcast_match_started(int match_id);
 
 /**
  * @brief Xử lý khi người chơi thực hiện mở rương (trả lời câu hỏi)
@@ -296,9 +304,11 @@ void broadcast_chest_drop(int match_id);
  * @param chest_id ID rương muốn mở
  * @param answer Câu trả lời trắc nghiệm hoặc ngắn
  */
-int server_handle_open_chest(ServerSession *session, int chest_id, const char *answer);
+int server_handle_get_chest_question(ServerSession *session, int chest_id, char *question_out);
 
-int server_handle_open_chest(ServerSession *session, int chest_id, const char *answer);
+
+
+int server_handle_open_chest(ServerSession *session, UserTable *ut, int chest_id, const char *answer);
 void get_chest_puzzle(ChestType type, char *q_out, char *a_out);
 
 
@@ -393,6 +403,8 @@ int get_active_session_count(void);
  *   - RESP_MATCH_NOT_FOUND (414): Match not found
  */
 int server_handle_match_info(int match_id, char *output, size_t output_size, UserTable *user);
+TreasureChest* find_chest_by_id_in_match(int match_id, int chest_id);
+
 
 /**
  * @brief Handle GET_HP command - retrieves current and max HP for player's ship in active match

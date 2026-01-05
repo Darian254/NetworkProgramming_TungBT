@@ -60,7 +60,6 @@ int num_active_ships = 0;
 UserTable *g_user_table = NULL;
 
 TreasureChest active_chests[MAX_TEAMS]; 
-
 ChestPuzzle puzzles[] = {
     {"1 + 1 = ?", "2"},             // Đồng
     {"Thủ đô của Việt Nam?", "Ha Noi"}, // Bạc
@@ -73,6 +72,7 @@ WeaponTemplate weapon_templates[] = {
     {3, "Tên lửa", 800, 2000, 1}
 };
 
+ 
 
 /* ============================================================================
  * AUTO-INCREMENT IDs
@@ -188,15 +188,27 @@ int get_armor_value(ArmorType type) {
     }
 }
 
-// //Tìm tàu theo id
-// Ship* find_ship_by_id(int ship_id) {
-//     for (int i = 0; i < num_active_ships; i++) {
-//         if (active_ships[i].ship_id == ship_id) {
-//             return &active_ships[i];
-//         }
-//     }
-//     return NULL;
-// }
+//Tìm tàu theo tên người chơi
+Ship* find_ship_by_name(char* target_name) {
+    if (!target_name) return NULL;
+
+    // Duyệt qua danh sách tàu đang có (biến ship_count và mảng ships khai báo trong db.c)
+    extern Ship ships[]; 
+    extern int ship_count;
+
+    
+    for (int i = 0; i < ship_count; i++) {
+        printf(" -> Checked ship [%d]: '%s' (Match ID: %d)\n", 
+               i, ships[i].player_username, ships[i].match_id);
+        
+        if (strcmp(ships[i].player_username, target_name) == 0) {
+           
+            return &ships[i];
+        }
+    }
+    
+    return NULL;
+}
 
 
 // //Lấy template vũ khí
@@ -210,11 +222,11 @@ int get_armor_value(ArmorType type) {
 // }
 
 
-// void update_ship_state(Ship* ship) {
-//     if (ship->hp == 0) {
-//         printf("[DEBUG] Tàu %d đã bị phá hủy!\n", ship->player_id);
-//     }
-// }
+void update_ship_state(Ship* ship) {
+    if (ship->hp == 0) {
+        printf("[DEBUG] Tàu của %s đã bị phá hủy!\n", ship->player_username);
+    }
+}
 
 
 /* ============================================================================
@@ -336,12 +348,13 @@ bool delete_team(int team_id) {
  * ============================================================================ */
 void clear_user_requests(const char *username) {
     if (!username) return;
-    User *user = findUser(g_user_table, username);
-    if (!user) return;
+
+    int user_id = hashFunc(username);
 
     int i = 0;
     while (i < join_request_count) {
-        if (strcmp(join_requests[i].username, username) == 0) {
+        if (join_requests[i].user_id == user_id) {
+            
             for (int j = i; j < join_request_count - 1; j++) {
                 join_requests[j] = join_requests[j + 1];
             }
@@ -433,6 +446,15 @@ void delete_ships_by_match(int match_id) {
 //     return s->hp;
 // }
 
+int get_team_id_by_player_id(int player_id) {
+    // Resolve team by hashing username instead of storing numeric user_id
+    for (int i = 0; i < team_member_count; i++) {
+        if (hashFunc(team_members[i].username) == player_id) {
+            return team_members[i].team_id;
+        }
+    }
+    return -1; // Không tìm thấy
+}
 /**
  * Buy armor for ship (with mutex)
  * 
@@ -452,37 +474,31 @@ ResponseCode ship_buy_armor(UserTable *user_table, Ship *ship, const char *usern
     
     // 3.1: Kiểm tra loại giáp tồn tại
     int price = get_armor_price(type);
-    printf("[DEBUG] ship_buy_armor: price: %d\n", price);
     int value = get_armor_value(type);
-    printf("[DEBUG] ship_buy_armor: value: %d\n", value);
     if (price == 0 || value == 0) {
         return RESP_ARMOR_NOT_FOUND;  // 520
     }
     
     // 3.2: Kiểm tra đủ coin
     User *u = findUser(user_table, username);
-    printf("[DEBUG] ship_buy_armor: u: %s\n", u->username);
     if (!u) return RESP_INTERNAL_ERROR;  // 500 
     
-
     if (u->coin < price) {
         return RESP_NOT_ENOUGH_COIN;  // 521
     }
-
     
     // 3.3: Kiểm tra slot giáp (tối đa 2 lớp)
     int target_slot = 0;  // 0 = không có slot trống
-    printf("[DEBUG] ship_buy_armor: ship->armor_slot_1_type: %d\n", ship->armor_slot_1_type);
-    printf("[DEBUG] ship_buy_armor: ship->armor_slot_2_type: %d\n", ship->armor_slot_2_type);
     if (ship->armor_slot_1_type == ARMOR_NONE) { 
         target_slot = 1;
     } else if (ship->armor_slot_2_type == ARMOR_NONE) {
         target_slot = 2;
     }
-    printf("[DEBUG] ship_buy_armor: target_slot: %d\n", target_slot);
+    
     if (target_slot == 0) {
         return RESP_ARMOR_SLOT_FULL;  // 522
     }  
+    
     /* ========== XỬ LÝ LOGIC ========== */
     // 4.1: Trừ coin 
     // updateUserCoin already got its own mutex lock inside
@@ -490,22 +506,17 @@ ResponseCode ship_buy_armor(UserTable *user_table, Ship *ship, const char *usern
     if (coin_result != 0) {
         return RESP_DATABASE_ERROR;  // 501 - lỗi khi trừ coin
     }
-    printf("[DEBUG] ship_buy_armor: coin_result != 0\n");
+    
     // 4.2: Gắn giáp vào tàu
     if (target_slot == 1) {
         ship->armor_slot_1_type = type;
         ship->armor_slot_1_value = value;
-        printf("[DEBUG] ship_buy_armor: ship->armor_slot_1_type: %d\n", ship->armor_slot_1_type);
-        printf("[DEBUG] ship_buy_armor: ship->armor_slot_1_value: %d\n", ship->armor_slot_1_value);
     } else {
         ship->armor_slot_2_type = type;
         ship->armor_slot_2_value = value;
-        printf("[DEBUG] ship_buy_armor: ship->armor_slot_2_type: %d\n", ship->armor_slot_2_type);
-        printf("[DEBUG] ship_buy_armor: ship->armor_slot_2_value: %d\n", ship->armor_slot_2_value);
     }
-    printf("[DEBUG] ship_buy_armor: target_slot == 1\n");
+    
     // Bước 5 (log) và Bước 6 (phản hồi) sẽ do handler xử lý
-    printf("[DEBUG] ship_buy_armor: RESP_BUY_ITEM_OK\n");
     return RESP_BUY_ITEM_OK;  // 334
 }
 
@@ -672,10 +683,26 @@ int get_match_result(int match_id) {
     return match->winner_team_id;
 }
 
-/* ============================================================================
- * CHALLENGE OPERATIONS
- * ============================================================================ */
 
+
+
+// Hàm tạo bản ghi thách đấu
+int create_challenge_record(int sender_team_id, int target_team_id) {
+    if (challenge_count >= MAX_CHALLENGES) return -1;
+    
+    Challenge *ch = &challenges[challenge_count];
+    ch->challenge_id = next_challenge_id++;
+    ch->sender_team_id = sender_team_id;
+    ch->target_team_id = target_team_id;
+    ch->created_at = time(NULL);
+    ch->status = CHALLENGE_PENDING;
+    ch->responded_at = 0;
+    
+    challenge_count++;
+    return ch->challenge_id;
+}
+
+// Hàm tìm bản ghi thách đấu
 Challenge* find_challenge_by_id(int challenge_id) {
     if (challenge_id <= 0) return NULL;
     
@@ -687,19 +714,24 @@ Challenge* find_challenge_by_id(int challenge_id) {
     return NULL;
 }
 
-int create_challenge_record(int sender_team_id, int target_team_id) {
-    if (sender_team_id <= 0 || target_team_id <= 0) return -1;
-    if (challenge_count >= MAX_CHALLENGES) return -1;
+// Hàm tìm challenge PENDING mới nhất của team (target_team_id)
+int find_latest_pending_challenge_for_team(int target_team_id) {
+    if (target_team_id <= 0) return -1;
     
-    Challenge *ch = &challenges[challenge_count];
-    ch->challenge_id = next_challenge_id++;
-    ch->sender_team_id = sender_team_id;
-    ch->target_team_id = target_team_id;
-    ch->created_at = time(NULL);
-    ch->status = STATUS_PENDING;
-    ch->responded_at = 0;
-    challenge_count++;
+    int latest_id = -1;
+    time_t latest_time = 0;
     
-    return ch->challenge_id;
+    for (int i = 0; i < challenge_count; i++) {
+        // So sánh với STATUS_PENDING (0) từ enum RequestStatus
+        // RequestStatus có STATUS_PENDING = 0
+        if (challenges[i].target_team_id == target_team_id &&
+            (int)challenges[i].status == 0) { // STATUS_PENDING = 0
+            if (challenges[i].created_at > latest_time) {
+                latest_time = challenges[i].created_at;
+                latest_id = challenges[i].challenge_id;
+            }
+        }
+    }
+    
+    return latest_id;
 }
-
