@@ -137,11 +137,12 @@ int handle_list_teams(ServerSession *session, char *output_buf, size_t buf_size)
     return RESP_LIST_TEAMS_OK; 
 }
 
-/* ============================================================================
- * TEAM MEMBER LIST 
- * ============================================================================ */
 
+/* ============================================================================
+ * TEAM MEMBER LIST
+ * ============================================================================ */
 int handle_team_member_list(ServerSession *session, char *output_buf, size_t buf_size) {
+
     if (!session || !output_buf || buf_size == 0) {
         return RESP_SYNTAX_ERROR;
     }
@@ -150,32 +151,35 @@ int handle_team_member_list(ServerSession *session, char *output_buf, size_t buf
         return RESP_NOT_LOGGED;
     }
 
+
     int real_team_id = find_team_id_by_username(session->username);
 
     if (session->current_team_id != real_team_id) {
         session->current_team_id = real_team_id;
-        update_session_by_socket(session->socket_fd, session);
+ 
     }
+
 
     if (session->current_team_id <= 0) {
         return RESP_NOT_IN_TEAM; 
     }
-    
+
     int team_id = session->current_team_id;
     Team *team = find_team_by_id(team_id);
     if (!team) {
         return RESP_TEAM_NOT_FOUND;
     }
-    
-    output_buf[0] = '\0';
-    char temp[MAX_USERNAME + 5];
-    int count = 0;
 
+    snprintf(output_buf, buf_size, "%s|", team->name);
+    
+    char temp[MAX_USERNAME + 5]; 
+    int count = 0;
 
     for (int i = 0; i < team_member_count; i++) {
         if (team_members[i].team_id == team_id) {
-            snprintf(temp, sizeof(temp), "%s ", team_members[i].username);
-            
+
+            snprintf(temp, sizeof(temp), "%s|", team_members[i].username);
+
             if (strlen(output_buf) + strlen(temp) < buf_size - 1) {
                 strcat(output_buf, temp);
                 count++;
@@ -183,11 +187,6 @@ int handle_team_member_list(ServerSession *session, char *output_buf, size_t buf
                 break; 
             }
         }
-    }
-    
-
-    if (count == 0) {
-        snprintf(output_buf, buf_size, "No members found (Empty team).");
     }
     
     return RESP_TEAM_MEMBERS_LIST_OK;
@@ -326,28 +325,31 @@ int handle_kick_member(ServerSession *session, const char *username) {
 }
 
 /* ============================================================================
- * JOIN REQUEST
+ * JOIN REQUEST (Gửi yêu cầu tham gia)
  * ============================================================================ */
 int handle_join_request(ServerSession *session, const char *name) {
     if (!session || !name) return RESP_SYNTAX_ERROR;
     if (!session->isLoggedIn) return RESP_NOT_LOGGED;
     
+    // Kiểm tra user đã có team chưa
     int current_team = find_team_id_by_username(session->username);
     if (current_team > 0) return RESP_ALREADY_IN_TEAM;
     
+    // Tìm team muốn join
     Team *team = find_team_by_name(name);
     if (!team) return RESP_TEAM_NOT_FOUND;
     
     if (get_team_member_count(team->team_id) >= MAX_TEAM_MEMBERS) {
         return RESP_TEAM_FULL;
     }
-    int user_id = hashFunc(session->username);
 
+    // Kiểm tra xem đã gửi request chưa (tránh spam)
     for (int i = 0; i < join_request_count; i++) {
         if (join_requests[i].team_id == team->team_id &&
-            join_requests[i].user_id == user_id) { 
+            strcmp(join_requests[i].username, session->username) == 0 && // So sánh tên
+            join_requests[i].status == STATUS_PENDING) { 
             
-            return RESP_JOIN_REQUEST_SENT;
+            return RESP_JOIN_REQUEST_SENT; // Đã gửi rồi
         }
     }
 
@@ -355,9 +357,14 @@ int handle_join_request(ServerSession *session, const char *name) {
         return RESP_INTERNAL_ERROR;
     }
 
+    // TẠO REQUEST MỚI
     JoinRequest *req = &join_requests[join_request_count++];
     req->team_id = team->team_id;
-    req->user_id = user_id; 
+    
+    // [QUAN TRỌNG] Lưu tên user thay vì ID
+    strncpy(req->username, session->username, MAX_USERNAME - 1);
+    req->username[MAX_USERNAME - 1] = '\0';
+    
     req->requested_at = time(NULL);
     req->status = STATUS_PENDING;
 
@@ -365,7 +372,51 @@ int handle_join_request(ServerSession *session, const char *name) {
 }
 
 /* ============================================================================
- * JOIN APPROVE 
+ * CHECK JOIN REQUESTS (Xem danh sách yêu cầu - Dành cho Captain)
+ * ============================================================================ */
+int handle_check_join_requests(ServerSession *session, char *output_buf, size_t buf_size) {
+    if (!session || !output_buf) return RESP_SYNTAX_ERROR;
+    if (!session->isLoggedIn) return RESP_NOT_LOGGED;
+
+    int team_id = session->current_team_id;
+    if (team_id <= 0) return RESP_NOT_IN_TEAM;
+
+    Team *team = find_team_by_id(team_id);
+    if (!team) return RESP_TEAM_NOT_FOUND;
+
+    // Chỉ Captain mới được xem
+    if (strcmp(team->creator_username, session->username) != 0) {
+        return RESP_NOT_CREATOR;
+    }
+
+    int count = 0;
+    output_buf[0] = '\0';
+    char temp[256];
+
+    for (int i = 0; i < join_request_count; i++) {
+        // Lọc request của team mình & trạng thái Pending
+        if (join_requests[i].team_id == team_id && 
+            join_requests[i].status == STATUS_PENDING) {
+            
+            // [CỰC KỲ ĐƠN GIẢN] Lấy tên trực tiếp từ struct
+            snprintf(temp, sizeof(temp), "%s|", join_requests[i].username);
+            
+            if (strlen(output_buf) + strlen(temp) < buf_size - 1) {
+                strcat(output_buf, temp);
+                count++;
+            }
+        }
+    }
+
+    if (count == 0) {
+        return RESP_NOT_FOUND_REQUEST; 
+    }
+
+    return RESP_OK;
+}
+
+/* ============================================================================
+ * JOIN APPROVE (Duyệt yêu cầu)
  * ============================================================================ */
 int handle_join_approve(ServerSession *session, const char *target_username, UserTable *user_table) {
     if (!session || !target_username) return RESP_SYNTAX_ERROR;
@@ -379,19 +430,13 @@ int handle_join_approve(ServerSession *session, const char *target_username, Use
         return RESP_NOT_CREATOR;
     }
 
-    User *target_user = findUser(user_table, target_username);
-
-    if (!target_user) return RESP_PLAYER_NOT_FOUND;
-
-    if (get_team_member_count(team->team_id) >= MAX_TEAM_MEMBERS) return RESP_TEAM_FULL;
-    if (find_team_id_by_username(target_username) > 0) return RESP_ALREADY_IN_TEAM;
-
-    int target_user_id = hashFunc(target_username);
-
+    // Tìm request khớp với tên người dùng được chọn
     int req_index = -1;
     for (int i = 0; i < join_request_count; i++) {
         if (join_requests[i].team_id == team->team_id &&
-            join_requests[i].user_id == target_user_id) { 
+            strcmp(join_requests[i].username, target_username) == 0 && // So sánh tên
+            join_requests[i].status == STATUS_PENDING) { 
+            
             req_index = i;
             break;
         }
@@ -401,43 +446,48 @@ int handle_join_approve(ServerSession *session, const char *target_username, Use
         return RESP_NOT_FOUND_REQUEST; 
     }
 
+    // Check full team
+    if (get_team_member_count(team->team_id) >= MAX_TEAM_MEMBERS) return RESP_TEAM_FULL;
+    
+    // Check nếu user đã vào team khác rồi
+    if (find_team_id_by_username(target_username) > 0) {
+        // Xóa request này đi vì không còn hợp lệ
+        // (Logic xóa: dời các phần tử phía sau lên)
+        for (int i = req_index; i < join_request_count - 1; i++) {
+            join_requests[i] = join_requests[i + 1];
+        }
+        join_request_count--;
+        return RESP_ALREADY_IN_TEAM;
+    }
+
+    // THÊM THÀNH VIÊN
+    TeamMember *member = &team_members[team_member_count++];
+    member->team_id = team->team_id;
+    strncpy(member->username, target_username, MAX_USERNAME - 1);
+    member->username[MAX_USERNAME - 1] = '\0';
+    member->role = 1; // Member
+    member->joined_at = time(NULL);
+
+    // Xóa request sau khi duyệt
     for (int i = req_index; i < join_request_count - 1; i++) {
         join_requests[i] = join_requests[i + 1];
     }
     join_request_count--;
 
-    if (team_member_count >= MAX_TEAMS * MAX_TEAM_MEMBERS) {
-        return RESP_INTERNAL_ERROR;
-    }
-
-    TeamMember *member = &team_members[team_member_count];
-    member->team_id = team->team_id;
-    strncpy(member->username, target_username, MAX_USERNAME - 1);
-    member->username[MAX_USERNAME - 1] = '\0';
-    member->role = 1;
-    member->joined_at = time(NULL);
-    team_member_count++;
-
+    // Cập nhật session nếu người chơi đang online
     SessionNode *target_node = find_session_by_username(target_username);
     if (target_node != NULL) {
         target_node->session.current_team_id = team->team_id;
-        update_session_by_socket(target_node->session.socket_fd, &target_node->session);
     }
 
     return RESP_JOIN_APPROVED;
 }
-/* ============================================================================
- * JOIN REJECT
- * ============================================================================ */
 
+/* ============================================================================
+ * JOIN REJECT (Từ chối yêu cầu)
+ * ============================================================================ */
 int handle_join_reject(ServerSession *session, const char *target_username) {
-    if (!session || !target_username) {
-        return RESP_SYNTAX_ERROR;
-    }
-    
-    if (!session->isLoggedIn) {
-        return RESP_NOT_LOGGED;
-    }
+    if (!session || !target_username) return RESP_SYNTAX_ERROR;
     
     int team_id = session->current_team_id;
     Team *team = find_team_by_id(team_id);
@@ -447,34 +497,26 @@ int handle_join_reject(ServerSession *session, const char *target_username) {
         return RESP_NOT_CREATOR;
     }
     
-    int target_user_id = hashFunc(target_username);
-    
     int req_index = -1;
     for (int i = 0; i < join_request_count; i++) {
         if (join_requests[i].team_id == team->team_id &&
-            join_requests[i].user_id == target_user_id) { 
+            strcmp(join_requests[i].username, target_username) == 0 && // So sánh tên
+            join_requests[i].status == STATUS_PENDING) { 
+            
             req_index = i;
             break;
         }
     }
     
     if (req_index == -1) {
-        return RESP_PLAYER_NOT_FOUND; 
+        return RESP_NOT_FOUND_REQUEST; 
     }
     
+    // Xóa request
     for (int i = req_index; i < join_request_count - 1; i++) {
         join_requests[i] = join_requests[i + 1];
     }
     join_request_count--;
-    
-    // (Tùy chọn) Có thể gửi thông báo cho người bị từ chối nếu họ online
-    /*
-    SessionNode *target_node = find_session_by_username(target_username);
-    if (target_node != NULL) {
-        // Gửi thông báo buồn :(
-        // send_line(target_node->session.socket_fd, "Your join request was rejected.");
-    }
-    */
     
     return RESP_JOIN_REJECTED;
 }
@@ -622,3 +664,45 @@ int handle_invite_reject(ServerSession *session, const char *name) {
 
     return RESP_TEAM_INVITE_REJECTED;
 }
+
+/* ============================================================================
+ * CHECK MY INVITES
+ * ============================================================================ */
+int handle_check_invites(ServerSession *session, char *output_buf, size_t buf_size) {
+    if (!session || !output_buf || buf_size == 0) return RESP_SYNTAX_ERROR;
+    if (!session->isLoggedIn) return RESP_NOT_LOGGED;
+
+    int my_id = hashFunc(session->username);
+    int count = 0;
+    output_buf[0] = '\0';
+    char temp[256];
+
+    // Duyệt qua tất cả lời mời
+    for (int i = 0; i < team_invite_count; i++) {
+        // Kiểm tra xem lời mời có phải gửi cho mình không và trạng thái Pending
+        if (team_invites[i].invitee_id == my_id && 
+            team_invites[i].status == STATUS_PENDING) {
+            
+            Team *t = find_team_by_id(team_invites[i].team_id);
+            if (t) {
+                // Format: "TeamName (ID: X)|"
+                // Dùng dấu | làm vách ngăn để Client dễ tách
+                snprintf(temp, sizeof(temp), "%s (ID: %d)|", t->name, t->team_id);
+                
+                if (strlen(output_buf) + strlen(temp) < buf_size - 1) {
+                    strcat(output_buf, temp);
+                    count++;
+                }
+            }
+        }
+    }
+
+    if (count == 0) {
+        // Không có lời mời
+        return RESP_INVITE_NOT_FOUND; // Hoặc một mã riêng như 206
+    }
+
+    return RESP_OK; // Dùng mã 200 hoặc mã tương ứng
+}
+
+

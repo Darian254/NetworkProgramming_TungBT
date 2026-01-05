@@ -44,8 +44,8 @@ typedef enum {
     FUNC_START_MATCH = 20,       /**< Start a match */
     FUNC_GET_MATCH_RESULT = 21 ,/**< Check match result */
     FUNC_END_MATCH = 22,        /**< End current match */
-    FUNC_FIRE = 39,          /**< Bắn tàu khác */
-    FUNC_CHALLENGE = 40,     /**< Gửi lời thách đấu */
+    FUNC_FIRE = 45,          /**< Bắn tàu khác */
+    FUNC_CHALLENGE = 46,     /**< Gửi lời thách đấu */
     FUNC_OPEN_CHEST = 41,
     FUNC_ACCEPT_CHALLENGE = 42,  /**< Accept challenge */
     FUNC_DECLINE_CHALLENGE = 43, /**< Decline challenge */
@@ -73,6 +73,8 @@ typedef enum {
     FUNC_BUY_WEAPON = 37,     /**< Buy weapon */
     FUNC_GET_WEAPON = 38,     /**< Get weapon info */
     FUNC_BATTLE_SCREEN = 44,    /**< Open battle screen UI */
+    FUNC_HOME_MENU = 39,      /**< Home menu for team management */
+    FUNC_TEAM_MENU = 40       /**< Team menu for detailed team management */
 
 } FunctionId;
 
@@ -99,13 +101,14 @@ typedef enum {
     RESP_KICK_MEMBER_OK = 129,    /**< Member kicked successfully */
     RESP_LOGOUT_OK = 134,         /**< Logout successful */
     RESP_WELCOME = 120,           /**< Initial connection greeting */
+    RESP_OK = 200,              /**< Generic success code */
     RESP_WHOAMI_OK = 201,         /**< Whoami successful */
     RESP_COIN_OK = 202,           /**< Get coin successful */
     RESP_ARMOR_INFO_OK = 203,     /**< Get armor info successful */
     RESP_BUY_ITEM_OK = 334,       /**< Buy item successful */
     RESP_END_MATCH_OK = 140,        /**< Match ended successfully */
     RESP_MATCH_INFO_OK = 206,     /**< Match info retrieved successfully */
-    
+    RESP_HP_INFO_OK = 207,         /**< HP info retrieved successfully */
     RESP_REPAIR_OK = 132,         /**< Repair successful */
 
     /* Client error codes - Command/Syntax */

@@ -404,4 +404,20 @@ int get_active_session_count(void);
  */
 int server_handle_match_info(int match_id, char *output, size_t output_size, UserTable *user);
 TreasureChest* find_chest_by_id_in_match(int match_id, int chest_id);
+
+
+/**
+ * @brief Handle GET_HP command - retrieves current and max HP for player's ship in active match
+ *
+ * @param session Pointer to the ServerSession
+ * @param hp_out Output: current HP
+ * @param max_hp_out Output: max HP (SHIP_DEFAULT_HP)
+ * @return Response code:
+ *   - RESP_HP_INFO_OK (207): Success
+ *   - RESP_NOT_LOGGED (315): Not logged in
+ *   - RESP_NOT_IN_MATCH (503): Not in a running match
+ *   - RESP_INTERNAL_ERROR (500): Ship not found or other error
+ */
+int server_handle_get_hp(ServerSession *session, int *hp_out, int *max_hp_out);
+
 #endif
