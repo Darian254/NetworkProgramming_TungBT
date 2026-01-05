@@ -49,20 +49,6 @@ void whoami_ui_ncurses(const char *response);
 void show_message_ncurses(const char *title, const char *message);
 
 /**
- * @brief Display a message dialog in battle screen (does not call endwin).
- * @param title Dialog title
- * @param message Message to display
- */
-void show_message_in_battle_screen(const char *title, const char *message);
-
-/**
- * @brief Display a message dialog in battle screen with ncurses initialization and cleanup.
- * @param title Dialog title
- * @param message Message to display
- */
-void show_message_in_battle_screen_with_init(const char *title, const char *message);
-
-/**
  * @brief Display main menu using ncurses and get user selection.
  * @return Selected option number (0-23) or FUNC_EXIT if cancelled
  */
@@ -95,40 +81,105 @@ int shop_armor_menu_ncurses(int coin);
 int shop_weapon_menu_ncurses(int coin);
 
 /**
- * @brief Show a popup dialog to get user input (for answering chest questions)
- * @param title Title of the popup
- * @param question The question text to display
- * @param buffer Output buffer for the answer
- * @param size Size of the buffer
- * @return 1 if submitted, 0 if cancelled
+ * @brief Display repair ship screen with HP input field.
+ * @param current_hp Current ship HP (for display, -1 if unknown)
+ * @param max_hp Maximum ship HP (for display, -1 if unknown)
+ * @param coin Current coin to display (upper-right)
+ * @return HP amount to repair (positive integer), or -1 if cancelled
  */
-int popup_input_ncurses(const char *title, const char *question, char *buffer, size_t size);
+int shop_repair_menu_ncurses(int current_hp, int max_hp, int coin);
 
 /**
- * @brief Battle screen: show 6 ships, HP, Armor, Coin, Shop, and Treasure Chest.
- * @param my_username Current player's username
- * @param team_left Array of friendly usernames
- * @param team_left_hp Array of friendly HP values
- * @param left_count Number of friendly ships
- * @param team_right Array of enemy usernames
- * @param team_right_hp Array of enemy HP values
- * @param right_count Number of enemy ships
- * @param my_hp Current player's ship HP
- * @param my_armor Current player's total armor value
- * @param my_coin Current player's coin
- * @param active_chest_id ID of the active chest (-1 if none)
- * @param out_target_username Output: selected enemy username
- * @param out_target_username_size Size of output buffer
- * @param out_weapon_id Output: 0=cannon, 1=laser, 2=missile
- * @return 1=FIRE, 0=SHOP, 2=OPEN_CHEST, -1=CANCEL
+ * @brief Display home menu for team management with user information.
+ * @param username Current logged-in username (for display)
+ * @param coin Current coin balance (-1 if unknown)
+ * @param team_name Current team name (NULL or empty if no team)
+ * @param hp Current HP (-1 if unknown)
+ * @param armor Current armor (-1 if unknown)
+ * @return 0=Create Team, 1=Join Request, 2=List Teams, 3=View Invites, 4=Back, -1=Cancel
  */
-int battle_screen_ncurses(const char *my_username,
-    const char **team_left, int *team_left_hp, int left_count,
-    const char **team_right, int *team_right_hp, int right_count,
-    int my_hp, int my_armor, int my_coin,
-    int active_chest_id, 
-    char *out_target_username, size_t out_target_username_size,
-    int *out_weapon_id);
+int home_menu_ncurses(const char *username, long coin, const char *team_name, int hp, int armor);
+
+/**
+ * @brief Display create team input form.
+ * @param team_name Output buffer for team name
+ * @param team_name_size Size of team_name buffer
+ * @return 1 if team name entered, 0 if cancelled
+ */
+int home_create_team_ncurses(char *team_name, size_t team_name_size);
+
+/**
+ * @brief Display join team request input form.
+ * @param team_name Output buffer for team name
+ * @param team_name_size Size of team_name buffer
+ * @return 1 if team name entered, 0 if cancelled
+ */
+int home_join_team_ncurses(char *team_name, size_t team_name_size);
+
+/**
+ * @brief Display invites list and allow accept/reject actions.
+ * @param invites_data Newline-separated list of team names
+ * @param team_name_out Output buffer for selected team name
+ * @param team_name_out_size Size of team_name_out buffer
+ * @param action_out Output: 0=reject, 1=accept
+ * @return -1=back, 0=no invites, 1=action taken
+ */
+int home_view_invites_ncurses(const char *invites_data, char *team_name_out, size_t team_name_out_size, int *action_out);
+
+/**
+ * @brief Display team menu with detailed team information and management options.
+ * @param team_id Team ID
+ * @param team_name Team name
+ * @param captain Captain username
+ * @param member_count Number of members
+ * @param members_list Newline-separated list of member usernames
+ * @return 0=Leave, 1=Invite, 2=Accept Join, 3=Challenge, 4=Back, -1=Cancel
+ */
+int team_menu_ncurses(int team_id, const char *team_name, const char *captain, int member_count, const char *members_list);
+
+/**
+ * @brief Display invite member input form.
+ * @param username Output buffer for username
+ * @param username_size Size of username buffer
+ * @return 1 if username entered, 0 if cancelled
+ */
+int team_invite_member_ncurses(char *username, size_t username_size);
+
+/**
+ * @brief Display join requests list and allow approve/reject.
+ * @param requests_data Newline-separated list of usernames
+ * @param username_out Output buffer for selected username
+ * @param username_out_size Size of username_out buffer
+ * @param action_out Output: 0=reject, 1=approve
+ * @return -1=back, 0=no requests, 1=action taken
+ */
+int team_accept_join_request_ncurses(const char *requests_data, char *username_out, size_t username_out_size, int *action_out);
+
+/**
+ * @brief Display challenge team input form.
+ * @param target_team Output buffer for team ID
+ * @param target_team_size Size of target_team buffer
+ * @return 1 if team ID entered, 0 if cancelled
+ */
+int team_challenge_ncurses(char *target_team, size_t target_team_size);
+
+/**
+ * @brief Display join requests list and allow approve/reject.
+ * @param requests_data Newline-separated list of usernames
+ * @param username_out Output buffer for selected username
+ * @param username_out_size Size of username_out buffer
+ * @param action_out Output: 0=reject, 1=approve
+ * @return -1=back, 0=no requests, 1=action taken
+ */
+int team_view_join_requests_ncurses(const char *requests_data, char *username_out, size_t username_out_size, int *action_out);
+
+/**
+ * @brief Display kick member input form.
+ * @param username Output buffer for username
+ * @param username_size Size of username buffer
+ * @return 1 if username entered, 0 if cancelled
+ */
+int team_kick_member_ncurses(char *username, size_t username_size);
 #endif
 
 #endif
