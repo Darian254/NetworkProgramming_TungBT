@@ -98,6 +98,30 @@ int shop_repair_menu_ncurses(int current_hp, int max_hp, int coin);
  * @param armor Current armor (-1 if unknown)
  * @return 0=Create Team, 1=Join Request, 2=List Teams, 3=View Invites, 4=Back, -1=Cancel
  */
+int battle_screen_ncurses(const char *my_username,
+    const char **team_left, int *team_left_hp, int left_count,
+    const char **team_right, int *team_right_hp, int right_count,
+    int my_hp, int my_armor, int my_coin,
+    int active_chest_id, 
+    char *out_target_username, size_t out_target_username_size,
+    int *out_weapon_id);
+//  * @brief Display repair ship screen with HP input field.
+//  * @param current_hp Current ship HP (for display, -1 if unknown)
+//  * @param max_hp Maximum ship HP (for display, -1 if unknown)
+//  * @param coin Current coin to display (upper-right)
+//  * @return HP amount to repair (positive integer), or -1 if cancelled
+//  */
+int shop_repair_menu_ncurses(int current_hp, int max_hp, int coin);
+
+/**
+ * @brief Display home menu for team management with user information.
+ * @param username Current logged-in username (for display)
+ * @param coin Current coin balance (-1 if unknown)
+ * @param team_name Current team name (NULL or empty if no team)
+ * @param hp Current HP (-1 if unknown)
+ * @param armor Current armor (-1 if unknown)
+ * @return 0=Create Team, 1=Join Request, 2=List Teams, 3=View Invites, 4=Back, -1=Cancel
+ */
 int home_menu_ncurses(const char *username, long coin, const char *team_name, int hp, int armor);
 
 /**

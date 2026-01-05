@@ -61,6 +61,12 @@ void displayMenu() {
     printf("38. Get Weapon Info\n");
     printf("39. Home Menu (Team Management)\n");
     printf("40. Team Menu (Detailed Team Management)\n");
+    printf("41. Open Chest\n");
+    printf("42. Accept Challenge\n");
+    printf("43. Decline Challenge\n");
+    printf("44. Battle Screen\n");
+    printf("45. Fire (Attack)\n");
+    printf("46. Challenge Team (Send Challenge)\n");
     printf("==================================\n");
     printf("Select an option: ");
 }
@@ -354,6 +360,65 @@ void show_message_ncurses(const char *title, const char *message) {
     delwin(win);
     clear();
     refresh();
+    endwin();
+}
+void show_message_in_battle_screen(const char *title, const char *message) {
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+    
+    int win_h = 8;
+    int win_w = 60;
+    int start_y = (max_y - win_h) / 2;
+    int start_x = (max_x - win_w) / 2;
+    
+    WINDOW *win = newwin(win_h, win_w, start_y, start_x);
+    keypad(win, TRUE);
+    box(win, 0, 0);
+    
+    mvwprintw(win, 1, (win_w - strlen(title)) / 2, "%s", title);
+    
+    // --- KHẮC PHỤC LỖI SEGMENTATION FAULT ---
+    // Nguyên nhân: Hàm strdup có thể gây lỗi trên một số hệ thống nếu không khai báo đúng chuẩn POSIX.
+    // Giải pháp: Thay thế bằng malloc + strcpy thủ công để an toàn tuyệt đối.
+    char *msg_copy = NULL;
+    if (message) {
+        msg_copy = malloc(strlen(message) + 1);
+        if (msg_copy) {
+            strcpy(msg_copy, message);
+        }
+    }
+
+    if (msg_copy) {
+        char *line = strtok(msg_copy, "\n");
+        int y_offset = 0;
+        int msg_y = 3;
+        int msg_x = 2;
+        int max_msg_w = win_w - 4;
+        
+        while (line && y_offset < 3) {
+            mvwprintw(win, msg_y + y_offset, msg_x, "%.*s", max_msg_w, line);
+            line = strtok(NULL, "\n");
+            y_offset++;
+        }
+        free(msg_copy); // Giải phóng bộ nhớ sau khi dùng xong
+    }
+    // ----------------------------------------
+    
+    mvwprintw(win, 6, (win_w - 20) / 2, "Press any key...");
+    
+    wrefresh(win);
+    wgetch(win);
+    
+    delwin(win);
+   
+}
+// Wrapper function để khởi tạo ncurses, hiển thị message, và đóng ncurses
+void show_message_in_battle_screen_with_init(const char *title, const char *message) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    show_message_in_battle_screen(title, message);
     endwin();
 }
 
@@ -1725,5 +1790,163 @@ int team_view_join_requests_ncurses(const char *requests_data, char *username_ou
     endwin();
     return result;
 }
+int popup_input_ncurses(const char *title, const char *question, char *buffer, size_t size) {
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(1);
+    erase();
+    refresh();
+    
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x);
+    int win_h = 14; int win_w = 70; // Tăng chiều cao để chứa câu hỏi dài
+    WINDOW *win = newwin(win_h, win_w, (max_y - win_h)/2, (max_x - win_w)/2);
+    keypad(win, TRUE); box(win, 0, 0);
+    
+    mvwprintw(win, 1, (win_w - strlen(title))/2, "%s", title);
+    
+    // In câu hỏi (tự động xuống dòng nếu dài)
+    int q_len = strlen(question);
+    int line_width = win_w - 4;
+    int q_lines = (q_len / line_width) + 1;
+    for (int i = 0; i < q_lines; i++) {
+        mvwprintw(win, 3 + i, 2, "%.*s", line_width, question + (i * line_width));
+    }
+
+    mvwprintw(win, 3 + q_lines + 1, 2, "Answer: ");
+    mvwprintw(win, win_h - 2, (win_w - 30)/2, "Enter: Submit | ESC: Cancel");
+    wrefresh(win);
+    
+    curs_set(1); echo();
+    wmove(win, 3 + q_lines + 1, 10);
+    int ch = wgetnstr(win, buffer, size - 1);
+    noecho(); curs_set(0);
+    delwin(win); clear(); refresh();
+    endwin();
+    
+    if (ch == ERR) return 0;
+    return (strlen(buffer) > 0);
+}
+int battle_screen_ncurses(const char *my_username,
+    const char **team_left, int *team_left_hp, int left_count,
+    const char **team_right, int *team_right_hp, int right_count,
+    int my_hp, int my_armor, int my_coin,
+    int active_chest_id,
+    char *out_target_username, size_t out_target_username_size,
+    int *out_weapon_id) {
+    
+    initscr(); cbreak(); noecho(); keypad(stdscr, TRUE); curs_set(0);
+    erase(); refresh();
+
+    int max_y, max_x; getmaxyx(stdscr, max_y, max_x);
+    int win_h = (max_y > 24) ? 24 : max_y - 1;
+    int win_w = (max_x > 80) ? 80 : max_x - 1;
+    
+    if (win_h < 22 || win_w < 60) {
+        endwin(); printf("Terminal too small! Resize needed.\n"); return -1;
+    }
+
+    WINDOW *win = newwin(win_h, win_w, (max_y - win_h)/2, (max_x - win_w)/2);
+    keypad(win, TRUE); box(win, 0, 0);
+
+    mvwprintw(win, 1, 2, "[S] Shop");
+    mvwprintw(win, 1, (win_w - 12)/2, "BATTLE FIELD");
+    mvwprintw(win, 1, win_w - 50, "HP:%d Armor:%d Coin:%d", my_hp, my_armor, my_coin); 
+
+    int col_left = 4, col_right = win_w - 24, row_top = 4;
+    mvwprintw(win, 2, col_left, "TEAM A"); mvwprintw(win, 2, col_right, "TEAM B");
+
+    if (active_chest_id > 0) {
+        wattron(win, A_BOLD | A_REVERSE);
+        mvwprintw(win, win_h/2, win_w/2 - 2, "[ $ ]"); 
+        wattroff(win, A_BOLD | A_REVERSE);
+        mvwprintw(win, win_h/2 + 1, win_w/2 - 4, "Press 'C'");
+    }
+
+    for (int i = 0; i < 3; i++) {
+        int y = row_top + i * 5;
+        int has_p = (i < left_count && team_left[i]);
+        int dead = (has_p && team_left_hp[i] <= 0);
+        if (dead) wattron(win, A_DIM);
+        
+        mvwhline(win, y, col_left, '-', 16);
+        mvwhline(win, y+3, col_left, '-', 16);
+        mvwvline(win, y+1, col_left, '|', 2);
+        mvwvline(win, y+1, col_left+15, '|', 2);
+        
+        if (has_p) {
+            mvwprintw(win, y+1, col_left+2, "%.*s", 12, team_left[i]);
+            mvwprintw(win, y+2, col_left+2, "HP:%d", team_left_hp[i]);
+            if (my_username && strcmp(my_username, team_left[i]) == 0) 
+                mvwprintw(win, y+2, col_left+10, "(Me)");
+            if (dead) mvwprintw(win, y+1, col_left+13, "XX");
+        } else mvwprintw(win, y+1, col_left+2, "[Empty]");
+        if (dead) wattroff(win, A_DIM);
+    }
+
+    static int sel = 0;
+    if (sel > 2) sel = 0;
+
+    while (1) {
+        for (int i = 0; i < 3; i++) {
+            int y = row_top + i * 5;
+            int has_p = (i < right_count && team_right[i]);
+            int dead = (has_p && team_right_hp[i] <= 0);
+            
+            if (i == sel) wattron(win, A_REVERSE);
+            
+            mvwhline(win, y, col_right, '-', 16);
+            mvwhline(win, y+3, col_right, '-', 16);
+            mvwvline(win, y+1, col_right, '|', 2);
+            mvwvline(win, y+1, col_right+15, '|', 2);
+            
+            if (has_p) {
+                if (dead) wattron(win, A_DIM);
+                mvwprintw(win, y+1, col_right+2, "%.*s", 12, team_right[i]);
+                mvwprintw(win, y+2, col_right+2, "HP:%d", team_right_hp[i]);
+                if (dead) {
+                    mvwprintw(win, y+1, col_right+13, "XX");
+                    wattroff(win, A_DIM);
+                }
+            } else {
+                mvwprintw(win, y+1, col_right+2, "[Empty]");
+            }
+            
+            if (i == sel) wattroff(win, A_REVERSE);
+        }
+
+        mvwprintw(win, win_h-2, 2, "Up/Down: Target | Enter: FIRE | S: Shop | C: Chest | ESC");
+        wrefresh(win);
+
+        int ch = wgetch(win);
+        if (ch == KEY_UP) {
+            sel--; if (sel < 0) sel = 2; 
+        } else if (ch == KEY_DOWN) {
+            sel++; if (sel > 2) sel = 0;
+        } else if (ch == 's' || ch == 'S') { delwin(win); endwin(); return 0; }
+        else if (ch == 'c' || ch == 'C') { 
+            if(active_chest_id > 0) { delwin(win); endwin(); return 2; }
+        }
+        else if (ch == 27) { delwin(win); endwin(); return -1; }
+        else if (ch == '\n' || ch == KEY_ENTER || ch == 'f' || ch == 'F') {
+            if (sel >= 0 && sel < right_count && team_right[sel]) {
+                if (team_right_hp[sel] <= 0) {
+                    mvwprintw(win, win_h-2, 2, "TARGET DEAD! Select another.                  ");
+                    wrefresh(win); napms(500);
+                } else {
+                    if (out_target_username) strcpy(out_target_username, team_right[sel]);
+                    if (out_weapon_id) *out_weapon_id = 0;
+                    delwin(win); endwin(); return 1;
+                }
+            } else {
+                mvwprintw(win, win_h-2, 2, "INVALID TARGET! (Empty slot)                  ");
+                wrefresh(win); napms(500);
+            }
+        }
+    }
+}
+
 
 #endif
