@@ -348,13 +348,12 @@ bool delete_team(int team_id) {
  * ============================================================================ */
 void clear_user_requests(const char *username) {
     if (!username) return;
-
-    int user_id = hashFunc(username);
+    User *user = findUser(g_user_table, username);
+    if (!user) return;
 
     int i = 0;
     while (i < join_request_count) {
-        if (join_requests[i].user_id == user_id) {
-            
+        if (strcmp(join_requests[i].username, username) == 0) {
             for (int j = i; j < join_request_count - 1; j++) {
                 join_requests[j] = join_requests[j + 1];
             }

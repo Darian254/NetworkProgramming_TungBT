@@ -237,18 +237,7 @@ void command_routes(int client_sock, char *command) {
             response_code = RESP_SYNTAX_ERROR;
         }
         snprintf(response, sizeof(response), "%d\r\n", response_code);
-        // Gửi response ngay lập tức để đảm bảo response đến trước broadcast chest drop
-        connection_send(client_sock, response, strlen(response));
         log_activity("START_MATCH", session->username, session->isLoggedIn, payload, response_code);
-        
-        // Sau khi gửi response, broadcast chest drop nếu match được tạo thành công
-        if (response_code == RESP_START_MATCH_OK) {
-            int match_id = session->current_match_id;
-            if (match_id > 0) {
-                broadcast_chest_drop(match_id, -1);
-            }
-        }
-        return; // Không gọi connection_send ở cuối nữa
     }
     else if (strcmp(type, "END_MATCH") == 0) {
         int match_id = -1;
@@ -261,6 +250,87 @@ void command_routes(int client_sock, char *command) {
         log_activity("END_MATCH", session->username, session->isLoggedIn, payload, response_code);
     }
 
+    // ========== Team/Challenge Commands (Future) ==========
+    // TODO: Add more commands here as you implement team features
+    // Examples:
+    // - CREATE_TEAM
+    // - DELETE_TEAM
+    // - JOIN_REQUEST
+    // - TEAM_INVITE
+    // - SEND_CHALLENGE
+    // etc.
+
+    // else if (strcmp(type, "FIRE") == 0) {
+    //     int target_id, weapon_id;
+    //     // Parse: FIRE <target> <weapon>
+    //     if (sscanf(payload, "%d %d", &target_id, &weapon_id) == 2) {
+    //         FireResult result;
+    //         memset(&result, 0, sizeof(FireResult));
+            
+    //         // Gọi Logic (Lưu ý: session ở đây đã có sẵn từ code gốc, không cần tạo mới)
+    //         response_code = server_handle_fire(session, target_id, weapon_id, &result);
+            
+    //         if (response_code == RESP_COIN_OK) {
+    //             // 1. Chuẩn bị response cho người bắn (sẽ được gửi ở cuối hàm)
+    //             snprintf(response, sizeof(response), "131 %d %d %d %d\r\n", 
+    //                      result.target_id, result.damage_dealt, 
+    //                      result.target_remaining_hp, result.target_remaining_armor);
+                
+    //             // 2. Broadcast cho mọi người khác (Gửi ngay lập tức)
+    //             broadcast_fire_event(result.attacker_id, result.target_id, result.damage_dealt, result.target_remaining_hp, result.target_remaining_armor);
+    //         } else {
+    //             // Gửi lỗi
+    //             snprintf(response, sizeof(response), "%d FIRE_FAIL\r\n", response_code);
+    //         }
+    //     } else {
+    //         snprintf(response, sizeof(response), "301 SYNTAX_ERROR\r\n");
+    //     }
+    // }
+
+    // // --- XỬ LÝ CHALLENGE (Thách đấu) ---
+    // else if (strcmp(type, "SEND_CHALLENGE") == 0) {
+    //     int target_team = atoi(payload);
+    //     int cid = 0;
+    //     response_code = server_handle_send_challenge(session, target_team, &cid);
+        
+    //     if (response_code == RESP_CHALLENGE_SENT)
+    //         snprintf(response, sizeof(response), "130 CHALLENGE_SENT %d\r\n", cid);
+    //     else 
+    //         snprintf(response, sizeof(response), "%d CHALLENGE_FAIL\r\n", response_code);
+    // }
+    // else if (strcmp(type, "ACCEPT_CHALLENGE") == 0) {
+    //     int cid = atoi(payload);
+    //     response_code = server_handle_accept_challenge(session, cid);
+    //     snprintf(response, sizeof(response), "%d CHALLENGE_ACCEPTED %d\r\n", response_code, cid);
+    // }
+    // else if (strcmp(type, "DECLINE_CHALLENGE") == 0) {
+    //     int cid = atoi(payload);
+    //     response_code = server_handle_decline_challenge(session, cid);
+    //     snprintf(response, sizeof(response), "%d CHALLENGE_DECLINED %d\r\n", response_code, cid);
+    // }
+    // else if (strcmp(type, "CANCEL_CHALLENGE") == 0) {
+    //     int cid = atoi(payload);
+    //     response_code = server_handle_cancel_challenge(session, cid);
+    //     snprintf(response, sizeof(response), "%d CHALLENGE_CANCELED %d\r\n", response_code, cid);
+    // }
+
+    // // --- XỬ LÝ CHEST (Rương) ---
+    // else if (strcmp(type, "CHEST_OPEN") == 0) {
+    //     int chest_id;
+    //     char answer[128];
+    //     if (sscanf(payload, "%d %[^\n]", &chest_id, answer) == 2) {
+    //         response_code = server_handle_open_chest(session, chest_id, answer);
+            
+    //         if (response_code == RESP_CHEST_OPEN_OK)
+    //             snprintf(response, sizeof(response), "127 CHEST_OPEN_SUCCESS\r\n");
+    //         else
+    //             snprintf(response, sizeof(response), "%d CHEST_OPEN_FAIL\r\n", response_code);
+    //         log_activity("CHEST_OPEN", session->username, session->isLoggedIn, payload, response_code);
+    //     } else {
+    //         snprintf(response, sizeof(response), "301 SYNTAX_ERROR\r\n");
+    //         log_activity("CHEST_OPEN", session->username, session->isLoggedIn, payload, RESP_SYNTAX_ERROR);
+    //     }
+    // }
 
     // ========== TEAM COMMANDS (moved from server.c) ==========
     else if (strcmp(type, "CREATE_TEAM") == 0 || strcmp(type, "CREATETEAM") == 0) {
@@ -342,6 +412,36 @@ void command_routes(int client_sock, char *command) {
         snprintf(response, sizeof(response), "%d\r\n", response_code);
         log_activity("INVITE_REJECT", session->username, session->isLoggedIn, payload, response_code);
     }
+    else if (strcmp(type, "CHECK_INVITES") == 0 || strcmp(type, "GET_INVITES") == 0) {
+        char invite_list[4096] = "";
+        // Giả sử RESP_INVITE_LIST_OK là 206 (hoặc bạn tự define trong config.h)
+        // Nếu chưa có, bạn có thể dùng tạm RESP_OK (200) hoặc số 206 cứng.
+        int code = handle_check_invites(session, invite_list, sizeof(invite_list));
+        
+        // Nếu tìm thấy lời mời (giả sử hàm trả về RESP_OK hoặc 206 khi có dữ liệu)
+        if (strlen(invite_list) > 0) {
+            // Gửi về dạng: "206 TeamA|TeamB|"
+            snprintf(response, sizeof(response), "206 %s\r\n", invite_list);
+            // Lưu ý: 206 là mã ví dụ, hãy đảm bảo Client.c check đúng mã này
+        } else {
+            // Không có lời mời
+            snprintf(response, sizeof(response), "404 No pending invites\r\n");
+        }
+        log_activity("CHECK_INVITES", session->username, session->isLoggedIn, payload, code);
+    }
+    else if (strcmp(type, "CHECK_JOIN_REQUESTS") == 0) {
+        char req_list[4096] = "";
+        response_code = handle_check_join_requests(session, req_list, sizeof(req_list));
+        
+        if (strlen(req_list) > 0) {
+            // Gửi danh sách nếu có (206 là mã ví dụ cho List OK)
+            snprintf(response, sizeof(response), "206 %s\r\n", req_list);
+        } else {
+            // Gửi mã lỗi nếu không có (404)
+            snprintf(response, sizeof(response), "404 No requests\r\n");
+        }
+        log_activity("CHECK_JOIN_REQUESTS", session->username, session->isLoggedIn, payload, response_code);
+    }
 
     // ========== REPAIR ==========
     else if (strcmp(type, "REPAIR") == 0) {
@@ -383,7 +483,29 @@ void command_routes(int client_sock, char *command) {
         }
         log_activity("MATCH_INFO", session->username, session->isLoggedIn, payload, response_code);
     }
-    // =================Fire===============
+
+        // ========== GET HP ==========
+
+    else if (strcmp(type, "GET_HP") == 0) {
+
+        int hp = -1, maxhp = -1;
+
+        response_code = server_handle_get_hp(session, &hp, &maxhp);
+
+        if (response_code == RESP_HP_INFO_OK) {
+
+            snprintf(response, sizeof(response), "%d %d %d\r\n", response_code, hp, maxhp);
+
+        } else {
+
+            snprintf(response, sizeof(response), "%d\r\n", response_code);
+
+        }
+
+        log_activity("GET_HP", session->username, session->isLoggedIn, "", response_code);
+
+    }
+     // =================Fire===============
     else if (strcmp(type, "FIRE") == 0) {
         char target_name[128];
         int  weapon_id;

@@ -102,6 +102,7 @@ bool insertUser(UserTable *ut, User *user);
  */
 User* findUser(UserTable *ut, const char *username);
 
+char* find_username_by_id(UserTable *table, int user_id);
 /**
  * @brief Rehash the hash table to a new capacity.
  * @param ut Pointer to the hash table.
